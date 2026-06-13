@@ -329,7 +329,7 @@ export default function MembersPage({ role }) {
       // INSERT new row
       const { error } = await supabase
         .from("members")
-        .insert({ ...payload, member_code: genCode(), points:0, attendance:0 });
+        .insert({ ...payload, member_code: genCode()});
       if (error) { notify("Add failed: " + error.message, "error"); }
       else        { notify("Member added ✓"); }
     }
@@ -403,8 +403,6 @@ export default function MembersPage({ role }) {
       type,
       branch:           BRANCHES.find(b => b.toLowerCase().includes((branch||"").toLowerCase())) || BRANCHES[0],
       lifegroup_leader: leader || "",
-      points:           0,
-      attendance:       0,
     };
   };
 
