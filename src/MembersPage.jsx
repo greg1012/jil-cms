@@ -471,7 +471,16 @@ export default function MembersPage({ role }) {
     // Filter out names already in DB
     const existingNames = new Set(members.map(m=>m.name.toLowerCase()));
     const newOnes = uploadState.rows.filter(r=>!existingNames.has(r.name.toLowerCase()));
-    const cleaned = newOnes.map(({ age, Age, attendance, points, ...rest }) => rest);
+    const cleaned = newOnes.map((r, i) => ({
+  member_code:      `JIL-${Date.now()}-${i}`,
+  name:             r.name,
+  birthdate:        r.birthdate,
+  address:          r.address,
+  category:         r.category,
+  type:             r.type,
+  branch:           r.branch,
+  lifegroup_leader: r.lifegroup_leader,
+}));
 
     if (!newOnes.length) {
       setUploadState({ status:"error", rows:[], error:"All names in this file already exist in the database." });
