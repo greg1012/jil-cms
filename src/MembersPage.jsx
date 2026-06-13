@@ -427,11 +427,26 @@ export default function MembersPage({ role }) {
           return obj;
         });
       } else if (ext==="xlsx"||ext==="xls") {
-        await loadScript(SHEETJS_CDN);
-        const buf = await file.arrayBuffer();
-        const wb = window.XLSX.read(buf, { type:"array" });
-        rows = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval:"" });
-      } else {
+  await loadScript(SHEETJS_CDN);
+  const buf = await file.arrayBuffer();
+  const wb = window.XLSX.read(buf, { type:"array" });
+
+  // Try each sheet until we find one with a "Full Name" or "Name" column
+  for (const sheetName of wb.SheetNames) {
+    const sheet = wb.Sheets[sheetName];
+    const allRows = window.XLSX.utils.sheet_to_json(sheet, { defval:"", raw:false });
+    const hasName = allRows.some(r =>
+      Object.keys(r).some(k =>
+        k.toLowerCase().replace(/[^a-z]/g,"").includes("name") ||
+        k.toLowerCase().replace(/[^a-z]/g,"").includes("fullname")
+      )
+    );
+    if (hasName && allRows.length > 0) {
+      rows = allRows;
+      break;
+    }
+  }
+} else {
         setUploadState({ status:"error", rows:[], error:"Unsupported file. Use .csv, .xlsx, or .xls" });
         return;
       }
