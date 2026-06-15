@@ -422,21 +422,28 @@ const QRScanner = ({ onResult }) => {
     setScanning(false);
   }, []);
 
-  const start = useCallback(async () => {
-    setStatus("starting");
+  const handleScan = useCallback(async (raw) => {
+    let parsed = { raw };
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:"environment" } });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setStatus("live");
-      setScanning(true);
-    } catch (err) {
-      setStatus(err && err.name === "NotAllowedError" ? "denied" : "error");
-    }
-  }, []);
+      const url = new URL(raw.replace("jil://", "https://jil.local/"));
+      parsed = {
+        raw,
+        code:   url.searchParams.get("code"),
+        name:   decodeURIComponent(url.searchParams.get("name")  || ""),
+        branch: decodeURIComponent(url.searchParams.get("branch") || ""),
+      };
+    } catch { /* not a structured URL */ }
+
+    const result = await recordAttendance(parsed);
+    const status = result?.status || "unknown";
+
+    setLog(prev => {
+      if (prev.length && prev[0].raw === raw && Date.now() - prev[0].ts < 3000) return prev;
+      return [{ ...parsed, ts: Date.now(), status }, ...prev].slice(0, 20);
+    });
+  }, [today]);
+
+  const start = useCallback(async () => {
 
   // Scan loop using BarcodeDetector if available
   useEffect(() => {
