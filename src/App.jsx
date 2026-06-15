@@ -1342,20 +1342,85 @@ const MyQRPage = ({ user }) => {
 
 /* ── QR SCANNER (superadmin) ──────────────────────────── */
 const ScannerPage = ({ role }) => {
-  const [log, setLog] = useState([]);
+  const [log,    setLog]    = useState([]);
   const [manual, setManual] = useState("");
+  const [today,  setToday]  = useState(() => {
+    const d = new Date();
+    const pad = n => String(n).padStart(2,"0");
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  });
+  const mob = useIsMobile();
 
-  const handleScan = useCallback((raw) => {
+  const recordAttendance = async (parsed) => {
+    if (!parsed.code) return; // not a member QR
+
+    // Find member by member_code
+    const { data: member } = await supabase
+      .from("members")
+      .select("id, name, points")
+      .eq("member_code", parsed.code)
+      .maybeSingle();
+
+    if (!member) return { status: "not_found" };
+
+    // Check if already checked in today
+    const { data: existing } = await supabase
+      .from("attendance")
+      .select("id")
+      .eq("member_id", member.id)
+      .eq("service_date", today)
+      .maybeSingle();
+
+    if (existing) return { status: "already" };
+
+    // Record attendance
+    const { error } = await supabase
+      .from("attendance")
+      .insert({
+        member_id:     member.id,
+        service_date:  today,
+        present:       true,
+        checked_in_at: new Date().toISOString(),
+      });
+
+    if (error) return { status: "error", msg: error.message };
+
+    // Award +10 points
+    await supabase
+      .from("members")
+      .update({ points: (member.points || 0) + 10 })
+      .eq("id", member.id);
+
+    return { status: "ok" };
+  };
+
+  const handleScan = useCallback(async (raw) => {
     setLog(prev => {
-      if (prev.length && prev[0].raw === raw && Date.now() - prev[0].ts < 3000) return prev; // debounce dupes
-      let parsed = { raw };
-      try {
-        const url = new URL(raw.replace("jil://", "https://jil.local/"));
-        parsed = { raw, code: url.searchParams.get("code"), name: decodeURIComponent(url.searchParams.get("name")||""), branch: decodeURIComponent(url.searchParams.get("branch")||"") };
-      } catch { /* not a structured URL */ }
-      return [{ ...parsed, ts: Date.now() }, ...prev].slice(0,12);
+      if (prev.length && prev[0].raw === raw && Date.now() - prev[0].ts < 3000) return prev;
+      return prev;
     });
-  }, []);
+
+    // Parse QR
+    let parsed = { raw };
+    try {
+      const url = new URL(raw.replace("jil://", "https://jil.local/"));
+      parsed = {
+        raw,
+        code:   url.searchParams.get("code"),
+        name:   decodeURIComponent(url.searchParams.get("name")  || ""),
+        branch: decodeURIComponent(url.searchParams.get("branch") || ""),
+      };
+    } catch { /* not a structured URL */ }
+
+    // Record in Supabase
+    const result = await recordAttendance(parsed);
+    const status = result?.status || "unknown";
+
+    setLog(prev => {
+      if (prev.length && prev[0].raw === raw && Date.now() - prev[0].ts < 3000) return prev;
+      return [{ ...parsed, ts: Date.now(), status }, ...prev].slice(0, 20);
+    });
+  }, [today]);
 
   const submitManual = () => {
     if (!manual.trim()) return;
@@ -1363,11 +1428,27 @@ const ScannerPage = ({ role }) => {
     setManual("");
   };
 
-  const mob = useIsMobile();
+  const statusLabel = (s) => {
+    if (s === "ok")        return { label:"Checked In ✓",  color:C.green };
+    if (s === "already")   return { label:"Already In",     color:C.amber };
+    if (s === "not_found") return { label:"Not Found",      color:C.rose2 };
+    if (s === "error")     return { label:"Error",          color:C.rose2 };
+    return                        { label:"Logged",          color:C.slate };
+  };
 
   return (
     <div>
-      <h2 style={{ margin:"0 0 18px", fontWeight:800, fontSize:20, color:C.ink }}>QR Attendance Scanner</h2>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+        marginBottom:18, flexWrap:"wrap", gap:10 }}>
+        <h2 style={{ margin:0, fontWeight:800, fontSize:20, color:C.ink }}>QR Attendance Scanner</h2>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ fontSize:12, color:C.slate }}>Service Date:</span>
+          <input type="date" value={today} onChange={e=>setToday(e.target.value)}
+            style={{ padding:"7px 12px", borderRadius:R.full, border:`1.5px solid ${C.cloud}`,
+              fontSize:13, outline:"none", color:C.ink }}/>
+        </div>
+      </div>
+
       <div style={{ display:"grid", gridTemplateColumns: mob?"1fr":"1fr 1fr", gap:20 }}>
         <Card>
           <h3 style={{ margin:"0 0 14px", fontWeight:700, fontSize:14, color:C.ink }}>Camera Scanner</h3>
@@ -1375,40 +1456,83 @@ const ScannerPage = ({ role }) => {
           <div style={{ marginTop:16, paddingTop:16, borderTop:`1px solid ${C.fog}` }}>
             <div style={{ fontSize:12, fontWeight:600, color:C.slate, marginBottom:8 }}>Manual Entry (fallback)</div>
             <div style={{ display:"flex", gap:8 }}>
-              <input value={manual} onChange={e=>setManual(e.target.value)} placeholder="Paste member code or QR data…"
-                style={{ flex:1, padding:"9px 14px", borderRadius:R.full, border:`1.5px solid ${C.cloud}`, fontSize:13, outline:"none", color:C.ink }}/>
+              <input value={manual} onChange={e=>setManual(e.target.value)}
+                placeholder="Paste member code or QR data…"
+                style={{ flex:1, padding:"9px 14px", borderRadius:R.full,
+                  border:`1.5px solid ${C.cloud}`, fontSize:13, outline:"none", color:C.ink }}/>
               <Btn label="Add" sm onClick={submitManual}/>
             </div>
           </div>
         </Card>
 
         <Card style={{ padding:0, overflow:"hidden" }}>
-          <div style={{ padding:"14px 20px", borderBottom:`1px solid ${C.fog}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div style={{ padding:"14px 20px", borderBottom:`1px solid ${C.fog}`,
+            display:"flex", justifyContent:"space-between", alignItems:"center" }}>
             <h3 style={{ margin:0, fontWeight:700, fontSize:14, color:C.ink }}>Scan Log</h3>
-            {log.length>0 && <Badge label={`${log.length} scanned`} color={C.green}/>}
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              {log.length > 0 && <Badge label={`${log.length} scanned`} color={C.green}/>}
+              {log.length > 0 && (
+                <Btn label="Clear" outline sm onClick={()=>setLog([])}/>
+              )}
+            </div>
           </div>
-          {log.length===0 ? (
+
+          {log.length === 0 ? (
             <div style={{ padding:"40px 20px", textAlign:"center", color:C.mist }}>
               <Ico.scan size={36} color={C.cloud}/>
-              <div style={{ marginTop:10, fontSize:13 }}>No scans yet. Point the camera at a member's QR code.</div>
+              <div style={{ marginTop:10, fontSize:13 }}>
+                No scans yet. Point the camera at a member's QR code.
+              </div>
             </div>
           ) : (
-            <div style={{ maxHeight:380, overflowY:"auto" }}>
-              {log.map((s,i)=>(
-                <div key={s.ts} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 20px", borderTop: i>0?`1px solid ${C.fog}`:"none" }}>
-                  {s.name ? <Av name={s.name} size={34}/> : (
-                    <div style={{ width:34,height:34,borderRadius:"50%",background:C.fog,display:"flex",alignItems:"center",justifyContent:"center" }}>
-                      <Ico.qr size={15} color={C.mist}/>
+            <div style={{ maxHeight:420, overflowY:"auto" }}>
+              {log.map((s,i) => {
+                const st = statusLabel(s.status);
+                return (
+                  <div key={s.ts} style={{ display:"flex", alignItems:"center", gap:12,
+                    padding:"12px 20px", borderTop: i>0?`1px solid ${C.fog}`:"none",
+                    background: s.status==="ok"?`${C.green}06`:
+                      s.status==="already"?`${C.amber}06`:C.white }}>
+                    {s.name ? <Av name={s.name} size={34}/> : (
+                      <div style={{ width:34, height:34, borderRadius:"50%", background:C.fog,
+                        display:"flex", alignItems:"center", justifyContent:"center" }}>
+                        <Ico.qr size={15} color={C.mist}/>
+                      </div>
+                    )}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontWeight:600, fontSize:13, color:C.ink,
+                        whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                        {s.name || "Unrecognized code"}
+                      </div>
+                      <div style={{ fontSize:11, color:C.mist, whiteSpace:"nowrap",
+                        overflow:"hidden", textOverflow:"ellipsis" }}>
+                        {s.code ? `${s.code} · ${s.branch}` : s.raw}
+                      </div>
                     </div>
-                  )}
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontWeight:600, fontSize:13, color:C.ink, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{s.name || "Unrecognized code"}</div>
-                    <div style={{ fontSize:11, color:C.mist, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{s.code ? `${s.code} · ${s.branch}` : s.raw}</div>
+                    <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3, flexShrink:0 }}>
+                      <Badge label={st.label} color={st.color}/>
+                      <span style={{ fontSize:11, color:C.mist }}>
+                        {new Date(s.ts).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
-                    <Ico.check size={14} color={C.green} sw={2.5}/>
-                    <span style={{ fontSize:11, color:C.mist }}>{new Date(s.ts).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}</span>
-                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Summary */}
+          {log.length > 0 && (
+            <div style={{ padding:"12px 20px", borderTop:`1px solid ${C.fog}`,
+              display:"flex", gap:16, background:C.fog }}>
+              {[
+                { label:"Checked In", color:C.green,  count:log.filter(s=>s.status==="ok").length },
+                { label:"Already In", color:C.amber,  count:log.filter(s=>s.status==="already").length },
+                { label:"Not Found",  color:C.rose2,  count:log.filter(s=>s.status==="not_found").length },
+              ].map(x => (
+                <div key={x.label} style={{ textAlign:"center" }}>
+                  <div style={{ fontWeight:700, fontSize:16, color:x.color }}>{x.count}</div>
+                  <div style={{ fontSize:10, color:C.mist }}>{x.label}</div>
                 </div>
               ))}
             </div>
@@ -1418,7 +1542,6 @@ const ScannerPage = ({ role }) => {
     </div>
   );
 };
-
 
 const EventsPage = () => {
   const mob = useIsMobile();
