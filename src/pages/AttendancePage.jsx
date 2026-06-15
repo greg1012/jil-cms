@@ -1,10 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+import QRScannerCheckin from "./QRScannerCheckin";
+import { supabase } from "../lib/supabaseClient";
 
 // ── Design tokens (shared with MembersPage / QRScannerPage) ──
 const C = {

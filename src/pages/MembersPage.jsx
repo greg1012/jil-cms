@@ -1,11 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { createClient } from "@supabase/supabase-js";
 import QRCode from "qrcode";
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+import { supabase } from "../lib/supabaseClient";
 
 const C = {
   ink:"#0A0F1E", ink2:"#1C2336", ink3:"#2E3A52",

@@ -1,10 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { createClient } from "@supabase/supabase-js";
+import QRScannerCheckin from "./QRScannerCheckin";
+import { supabase } from "../lib/supabaseClient";
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
 
 // ── Design tokens (shared with rest of app) ──────────────────
 const C = {
@@ -199,44 +196,8 @@ export default function MyAttendancePage() {
 
   return (
     <div>
-      {/* ── Rank header banner ─────────────────────────────── */}
-      <div style={{ background:C.ink, borderRadius:R.xl, padding:"20px 24px", marginBottom:20,
-        display:"flex", alignItems:"center", justifyContent:"space-between", gap:16, flexWrap:"wrap" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:14, minWidth:200 }}>
-          <div style={{ fontSize:28 }}>{rank.icon}</div>
-          <div style={{ flex:1, minWidth:180 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
-              <span style={{ color:rank.color, fontWeight:800, fontSize:14, letterSpacing:.5,
-                textTransform:"uppercase" }}>{rank.name}</span>
-              <span style={{ color:"rgba(255,255,255,.5)", fontSize:13 }}>· {member.points||0} pts</span>
-            </div>
-            <div style={{ background:"rgba(255,255,255,.12)", borderRadius:R.full, height:6, overflow:"hidden", minWidth:200 }}>
-              <div style={{
-                width: nextRank
-                  ? `${Math.min(100, ((member.points||0) - rank.min) / (nextRank.min - rank.min) * 100)}%`
-                  : "100%",
-                height:"100%", background:rank.color, borderRadius:R.full,
-                transition:"width .7s cubic-bezier(.4,0,.2,1)" }}/>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display:"flex", alignItems:"center", gap:24 }}>
-          {nextRank && (
-            <div style={{ textAlign:"right" }}>
-              <div style={{ fontSize:11, color:"rgba(255,255,255,.4)" }}>→ {nextRank.name} at {nextRank.min}</div>
-            </div>
-          )}
-          <div style={{ textAlign:"right" }}>
-            <div style={{ fontSize:20, fontWeight:800, color:"#fff" }}>{stats.rate}%</div>
-            <div style={{ fontSize:11, color:"rgba(255,255,255,.4)" }}>Attend.</div>
-          </div>
-          <div style={{ textAlign:"right" }}>
-            <div style={{ fontSize:20, fontWeight:800, color:C.amber2 }}>{member.points||0}</div>
-            <div style={{ fontSize:11, color:"rgba(255,255,255,.4)" }}>Points</div>
-          </div>
-        </div>
-      </div>
+      
+      <QRScannerCheckin />
 
       <h2 style={{ margin:"0 0 16px", fontWeight:800, fontSize:20, color:C.ink }}>Attendance</h2>
 

@@ -4,12 +4,8 @@ import Login from "./components/Login";
 import MembersPage from './pages//MembersPage'
 import QRGeneratorPage from './pages/QRGeneratorPage'
 import QRCode from "qrcode";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+import { supabase } from "./lib/supabaseClient";
+import MyAttendancePage from './pages/MyAttendancePage';
 
 /* ═══════════════════════════════════════════════════════════
    DESIGN SYSTEM
@@ -675,8 +671,19 @@ const Topbar = ({ role, page, user, collapsed, setCollapsed, mobile, setShowMob 
    GAMIFICATION STRIP (regular users)
 ═══════════════════════════════════════════════════════════ */
 const GamStrip = ({ user }) => {
-  const m = SEED_MEMBERS.find(x=>x.name===user.name)||SEED_MEMBERS[0];
-  const rank = getRank(m.points);
+  const [m, setM] = useState({ points: 0, attendance: 0 });
+
+  useEffect(() => {
+    if (!user.memberId) return;
+    supabase
+      .from("members")
+      .select("points")
+      .eq("id", user.memberId)
+      .maybeSingle()
+      .then(({ data }) => { if (data) setM(data); });
+  }, [user.memberId]);
+
+  const rank = getRank(m.points || 0);
   const nextRank = RANKS[RANKS.indexOf(rank)+1];
   const pct = nextRank
     ? ((m.points-rank.min)/(nextRank.min-rank.min))*100
@@ -684,22 +691,21 @@ const GamStrip = ({ user }) => {
 
   return (
     <div style={{ background:C.ink2, padding:"10px 20px", display:"flex", alignItems:"center", gap:16, flexWrap:"wrap", borderBottom:"1px solid rgba(255,255,255,.06)" }}>
-      <TreeGrowth points={m.points} size={44}/>
+      <TreeGrowth points={m.points || 0} size={44}/>
       <div style={{ flex:1, minWidth:120 }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
-          <span style={{ color:"#CBD5E1", fontSize:12, fontWeight:600 }}>{rank.name} · {m.points} pts</span>
+          <span style={{ color:"#CBD5E1", fontSize:12, fontWeight:600 }}>{rank.name} · {m.points || 0} pts</span>
           {nextRank && <span style={{ color:"#475569", fontSize:11 }}>→ {nextRank.name} at {nextRank.min}</span>}
         </div>
-        <Bar value={m.points-rank.min} max={nextRank?nextRank.min-rank.min:200} color={rank.color} height={5} bg="rgba(255,255,255,.08)"/>
+        <Bar value={(m.points||0)-rank.min} max={nextRank?nextRank.min-rank.min:200} color={rank.color} height={5} bg="rgba(255,255,255,.08)"/>
       </div>
       <div style={{ display:"flex", gap:20 }}>
-        <div style={{ textAlign:"center" }}><div style={{ color:"#fff", fontWeight:700, fontSize:15 }}>{m.attendance}%</div><div style={{ color:"#475569", fontSize:10 }}>Attend.</div></div>
-        <div style={{ textAlign:"center" }}><div style={{ color:C.amber2, fontWeight:700, fontSize:15 }}>{m.points}</div><div style={{ color:"#475569", fontSize:10 }}>Points</div></div>
+        <div style={{ textAlign:"center" }}><div style={{ color:"#fff", fontWeight:700, fontSize:15 }}>{m.attendance||0}%</div><div style={{ color:"#475569", fontSize:10 }}>Attend.</div></div>
+        <div style={{ textAlign:"center" }}><div style={{ color:C.amber2, fontWeight:700, fontSize:15 }}>{m.points||0}</div><div style={{ color:"#475569", fontSize:10 }}>Points</div></div>
       </div>
     </div>
   );
 };
-
 /* ═══════════════════════════════════════════════════════════
    PAGES
 ═══════════════════════════════════════════════════════════ */
@@ -1522,7 +1528,9 @@ export default function App() {
     };
     switch(page) {
       case "dashboard":  return <Dashboard    role={role} user={user}/>;
-      case "attendance": return <AttendancePage role={role} user={user}/>;
+      case "attendance": return role === "regular"
+  ? <MyAttendancePage />
+  : <AttendancePage role={role} user={user}/>;
       case "finance":    return <FinancePage  role={role} user={user}/>;
       case "reports":    return <ReportsPage  role={role}/>;
       case "members":    return <MembersPage  role={role}/>;
