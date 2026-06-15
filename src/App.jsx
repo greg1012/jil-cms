@@ -1395,33 +1395,28 @@ const ScannerPage = ({ role }) => {
     return { status: "ok" };
   };
 
-  const handleScan = useCallback(async (raw) => {
-    setLog(prev => {
-      if (prev.length && prev[0].raw === raw && Date.now() - prev[0].ts < 3000) return prev;
-      return prev;
-    });
-
-    // Parse QR
-    let parsed = { raw };
+  const start = useCallback(async () => {
+    setStatus("starting");
     try {
-      const url = new URL(raw.replace("jil://", "https://jil.local/"));
-      parsed = {
-        raw,
-        code:   url.searchParams.get("code"),
-        name:   decodeURIComponent(url.searchParams.get("name")  || ""),
-        branch: decodeURIComponent(url.searchParams.get("branch") || ""),
-      };
-    } catch { /* not a structured URL */ }
-
-    // Record in Supabase
-    const result = await recordAttendance(parsed);
-    const status = result?.status || "unknown";
-
-    setLog(prev => {
-      if (prev.length && prev[0].raw === raw && Date.now() - prev[0].ts < 3000) return prev;
-      return [{ ...parsed, ts: Date.now(), status }, ...prev].slice(0, 20);
-    });
-  }, [today]);
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: { ideal: "environment" } } 
+      });
+      streamRef.current = stream;
+      setStatus("live");
+      setScanning(true);
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute("playsinline", true);
+          videoRef.current.setAttribute("autoplay", true);
+          videoRef.current.muted = true;
+          videoRef.current.play().catch(err => console.error("Video play error:", err));
+        }
+      }, 100);
+    } catch (err) {
+      setStatus(err && err.name === "NotAllowedError" ? "denied" : "error");
+    }
+  }, []);
 
   const submitManual = () => {
     if (!manual.trim()) return;
