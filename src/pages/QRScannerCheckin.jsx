@@ -62,24 +62,40 @@ export default function QRScannerCheckin({ onCheckedIn }) {
 
   // ── Start camera ─────────────────────────────────────────
   const startScanning = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
-      });
-      streamRef.current = stream;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { 
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      }
+    });
+    streamRef.current = stream;
+    setStatus("scanning");
+    processedRef.current = null;
+
+    // Wait for next render so video element is visible, then attach stream
+    setTimeout(() => {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-          videoRef.current.load();
+        videoRef.current.setAttribute("playsinline", true);
+        videoRef.current.setAttribute("autoplay", true);
+        videoRef.current.muted = true;
+        videoRef.current.play().then(() => {
+          startScanLoop();
+        }).catch(err => {
+          console.error("Video play error:", err);
+          startScanLoop(); // try anyway
+        });
       }
-      setStatus("scanning");
-      processedRef.current = null;
-      startScanLoop();
-    } catch (err) {
-      notify(err.name === "NotAllowedError"
-        ? "Camera permission denied. Please allow camera access."
-        : "Unable to access camera.", "error");
-    }
-  };
+    }, 100);
+
+  } catch (err) {
+    notify(err.name === "NotAllowedError"
+      ? "Camera permission denied. Please allow camera access."
+      : "Unable to access camera: " + err.message, "error");
+  }
+};
 
   // ── Stop camera ──────────────────────────────────────────
   const stopScanning = useCallback(() => {
