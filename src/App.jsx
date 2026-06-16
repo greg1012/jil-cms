@@ -969,7 +969,8 @@ const AnnouncementsPage = () => {
   const uploadTheme = async () => {
   if (!themeFile) return;
   setThemeUploading(true);
-  const ext = themeFile.name.split(".").pop();
+  const name = themeFile.name.toLowerCase();
+  const ext = name.endsWith(".png") ? "png" : "jpg";
   const path = `theme-${Date.now()}.${ext}`;
   const { error: upErr } = await supabase.storage.from("theme").upload(path, themeFile, { upsert: true });
   if (upErr) {
