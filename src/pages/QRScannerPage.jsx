@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createClient } from "@supabase/supabase-js";
 import jsQR from "jsqr";
-import { supabase } from "../lib/supabaseClient";
+
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 // ── Design tokens ────────────────────────────────────────────
 const C = {
@@ -152,6 +157,8 @@ export default function QRScannerPage() {
   const lastScanRef = useRef(null); // debounce same code
 
   const [scanning,     setScanning]     = useState(false);
+  const [tryAgain,     setTryAgain]     = useState(false);
+  const tryAgainRef = useRef(null);
   const [camError,     setCamError]     = useState(null);
   const [looking,      setLooking]      = useState(false); // Supabase lookup in progress
   const [toast,        setToast]        = useState(null);
@@ -241,6 +248,14 @@ export default function QRScannerPage() {
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
+  // ── Try again timeout ─────────────────────────────────────
+  useEffect(() => {
+    if (!scanning) { setTryAgain(false); clearTimeout(tryAgainRef.current); return; }
+    setTryAgain(false);
+    tryAgainRef.current = setTimeout(() => setTryAgain(true), 5000);
+    return () => clearTimeout(tryAgainRef.current);
+  }, [scanning]);
+
   // ── Scan loop ─────────────────────────────────────────────
   useEffect(() => {
     if (!scanning) return;
@@ -258,6 +273,8 @@ export default function QRScannerPage() {
       const code    = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts:"dontInvert" });
       if (code && code.data !== lastScanRef.current) {
         lastScanRef.current = code.data;
+        clearTimeout(tryAgainRef.current);
+        setTryAgain(false);
         handleScan(code.data);
         return;
       }
@@ -404,6 +421,7 @@ export default function QRScannerPage() {
         id:         Date.now(),
       };
       setLog(prev => [record, ...prev]);
+      notify(`${member.name} checked in ✓`, "success");
       setSuccessData({
         member: { ...member, branchName },
         event: activeEvent
@@ -553,6 +571,15 @@ export default function QRScannerPage() {
 
             <canvas ref={canvasRef} style={{ display:"none" }}/>
           </div>
+
+          {/* Try again hint */}
+          {tryAgain && scanning && (
+            <div style={{ background:C.amber3, color:C.amber, borderRadius:R.md,
+              padding:"10px 14px", fontSize:13, fontWeight:600,
+              marginBottom:12, textAlign:"center" }}>
+              ⚠️ No QR detected — try moving closer or adjusting lighting.
+            </div>
+          )}
 
           {/* Start / Stop */}
           <button

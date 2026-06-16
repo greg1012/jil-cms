@@ -1256,6 +1256,7 @@ const MyQRPage = ({ user }) => {
 /* ── QR SCANNER (superadmin) ──────────────────────────── */
 const ScannerPage = ({ role }) => {
   const [log,    setLog]    = useState([]);
+  const [toast, setToast] = useState(null);
   const [manual, setManual] = useState("");
   const [today,  setToday]  = useState(() => {
     const d = new Date();
@@ -1323,6 +1324,10 @@ const ScannerPage = ({ role }) => {
       if (prev.length && prev[0].raw === raw && Date.now() - prev[0].ts < 3000) return prev;
       return [{ ...parsed, ts: Date.now(), status }, ...prev].slice(0, 20);
     });
+    if (status === "ok")        setToast({ msg:`${parsed.name || "Member"} checked in ✓`, type:"success" });
+    if (status === "already")   setToast({ msg:`${parsed.name || "Member"} already checked in`, type:"warn" });
+    if (status === "not_found") setToast({ msg:"Member not found", type:"error" });
+    if (status === "error")     setToast({ msg:"Check-in failed", type:"error" });
   }, [today]);
 
   const submitManual = () => {
@@ -1341,6 +1346,7 @@ const ScannerPage = ({ role }) => {
 
   return (
     <div>
+      {toast && <Toast msg={toast.msg} type={toast.type} onDone={() => setToast(null)}/>}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
         marginBottom:18, flexWrap:"wrap", gap:10 }}>
         <h2 style={{ margin:0, fontWeight:800, fontSize:20, color:C.ink }}>QR Attendance Scanner</h2>
