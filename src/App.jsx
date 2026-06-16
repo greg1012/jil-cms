@@ -1192,7 +1192,17 @@ const FinancePage = ({ role, user }) => {
               <Inp label="Type" value={form.type} onChange={v=>setForm({...form,type:v})} options={FINANCE_TYPES}/>
               <Inp label="Amount (₱)" type="number" value={form.amount} onChange={v=>setForm({...form,amount:v})} placeholder="0.00"/>
               <Inp label="Note (optional)" value={form.note} onChange={v=>setForm({...form,note:v})} placeholder="e.g. Sunday June 8"/>
-              <Btn label="Submit Giving" icon={Ico.send} onClick={()=>setDone(true)} full/>
+              <Btn label="Submit Giving" icon={Ico.send} onClick={async () => {
+                if (!form.amount || !form.type) return;
+                const { error } = await supabase.from("giving").insert([{
+                  type: form.type,
+                  amount: parseFloat(form.amount),
+                  note: form.note,
+                  date: new Date().toISOString().split("T")[0],
+                }]);
+                if (error) alert("Failed: " + error.message);
+                else { setDone(true); setForm({ type:"Tithes", amount:"", note:"" }); }
+              }} full/>
             </>
           )}
         </Card>
