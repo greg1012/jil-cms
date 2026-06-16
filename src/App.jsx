@@ -7,6 +7,7 @@ import QRCode from "qrcode";
 import { supabase } from "./lib/supabaseClient";
 import MyAttendancePage from './pages/MyAttendancePage';
 import AttendancePage from './pages/AttendancePage';
+import jsQR from "jsqr";
 /* ═══════════════════════════════════════════════════════════
    DESIGN SYSTEM
 ═══════════════════════════════════════════════════════════ */
@@ -447,43 +448,34 @@ const QRScanner = ({ onResult }) => {
 
   // Scan loop using jsQR
   useEffect(() => {
-    if (!scanning) return;
+  if (!scanning) return;
 
-    // Dynamically load jsQR if not already loaded
-    const runLoop = (jsQR) => {
-      const tick = () => {
-        const video  = videoRef.current;
-        const canvas = canvasRef.current;
-        if (!video || !canvas || video.readyState < 2) {
-          rafRef.current = requestAnimationFrame(tick);
-          return;
-        }
-        canvas.width  = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(video, 0, 0);
-        const img  = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" });
-        if (code && code.data !== lastRef.current) {
-          lastRef.current = code.data;
-          onResult(code.data);
-          // Reset 10s timeout on each scan
-          if (timeoutRef.current) clearTimeout(timeoutRef.current);
-          timeoutRef.current = setTimeout(() => stop(), 10000);
-        }
-        rafRef.current = requestAnimationFrame(tick);
-      };
-
-    // Try to import jsQR (assumes it's installed)
-    import("jsqr").then(mod => runLoop(mod.default)).catch(() => {
-      console.warn("jsQR not available — camera scan disabled");
-    });
+  const tick = () => {
+    const video  = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState < 2) {
+      rafRef.current = requestAnimationFrame(tick);
+      return;
+    }
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0);
+    const img  = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" });
+    if (code && code.data !== lastRef.current) {
+      lastRef.current = code.data;
+      onResult(code.data);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => stop(), 10000);
+    }
+    rafRef.current = requestAnimationFrame(tick);
   };
 
-      runLoop && import("jsqr").then(mod => runLoop(mod.default));
+  tick(); // ← start the loop
 
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
-  }, [scanning, onResult]);
+  return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+}, [scanning, onResult]);
 
   useEffect(() => () => {
   stop();
