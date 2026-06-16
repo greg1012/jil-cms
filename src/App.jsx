@@ -6,6 +6,7 @@ import QRGeneratorPage from './pages/QRGeneratorPage'
 import QRCode from "qrcode";
 import { supabase } from "./lib/supabaseClient";
 import MyAttendancePage from './pages/MyAttendancePage';
+import AttendancePage from './pages/AttendancePage';
 /* ═══════════════════════════════════════════════════════════
    DESIGN SYSTEM
 ═══════════════════════════════════════════════════════════ */
@@ -831,137 +832,6 @@ const Dashboard = ({ role, user }) => {
   );
 };
 
-/* ── ATTENDANCE ──────────────────────────── */
-const AttendancePage = ({ role, user }) => {
-  const isAdmin = role!=="regular";
-  const mob = useIsMobile();
-  const [liveModal, setLiveModal] = useState(false);
-  const [liveForm, setLiveForm] = useState({ event:"Sunday Worship", date:"2026-06-08", timeStart:"09:00", timeEnd:"12:00", branch:"Main – Pinamalayan" });
-  const [activeLive, setActiveLive] = useState(null);
-
-  const myRec = WEEKLY_ATT[user.name]||[1,1,0,1,1,1,1,0,1,1,1,0];
-  const myPct = Math.round(myRec.filter(Boolean).length/myRec.length*100);
-
-  const allEntries = isAdmin ? Object.entries(WEEKLY_ATT) : [[user.name, myRec]];
-  const recent = WEEK_LABELS.slice(-6);
-
-  return (
-    <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18, flexWrap:"wrap", gap:10 }}>
-        <h2 style={{ margin:0, fontWeight:800, fontSize:20, color:C.ink }}>Attendance</h2>
-        {isAdmin && (
-          <Btn label="Go Live" icon={Ico.qr} onClick={()=>setLiveModal(true)} sm/>
-        )}
-      </div>
-
-      {/* My Stats (regular only) */}
-      {!isAdmin && (
-        <div style={{ display:"grid", gridTemplateColumns: mob?"1fr":"1fr 1fr", gap:14, marginBottom:20 }}>
-          <Card style={{ background:`linear-gradient(135deg,${C.blue},#2563EB)`, border:"none" }}>
-            <div style={{ color:"rgba(255,255,255,.6)", fontSize:12 }}>My Attendance Rate</div>
-            <div style={{ color:"#fff", fontSize:36, fontWeight:800, margin:"4px 0" }}>{myPct}%</div>
-            <Bar value={myPct} color="rgba(255,255,255,.4)" bg="rgba(255,255,255,.15)" height={5}/>
-            <div style={{ color:"rgba(255,255,255,.6)", fontSize:12, marginTop:8 }}>{myRec.filter(Boolean).length} of {myRec.length} Sundays attended</div>
-          </Card>
-          <Card>
-            <div style={{ display:"flex", alignItems:"center", gap:16 }}>
-              <TreeGrowth points={SEED_MEMBERS.find(x=>x.name===user.name)?.points||0} size={64}/>
-              <div>
-                <div style={{ color:C.slate, fontSize:12, marginBottom:4 }}>Attendance Streak</div>
-                <div style={{ fontSize:28, fontWeight:800, color:C.ink }}>{myRec.filter(Boolean).length} wks</div>
-                <div style={{ fontSize:12, color:myPct>=90?C.green:C.slate }}>{myPct>=90?"🏆 Gold Tier":myPct>=75?"🥈 Silver Tier":"Keep it up!"}</div>
-              </div>
-            </div>
-          </Card>
-        </div>
-      )}
-
-      {/* Admin classification */}
-      {isAdmin && (
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))", gap:12, marginBottom:20 }}>
-          {[{l:"Official Members",v:89,c:C.blue},{l:"First Timers",v:12,c:C.green},{l:"Guests",v:26,c:C.amber}].map(x=>(
-            <Card key={x.l}>
-              <div style={{ fontSize:12, color:C.slate, marginBottom:6 }}>{x.l}</div>
-              <div style={{ fontSize:26, fontWeight:800, color:x.c, marginBottom:6 }}>{x.v}</div>
-              <Bar value={x.v} max={130} color={x.c}/>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Weekly Table */}
-      <Card style={{ padding:0, overflow:"hidden" }}>
-        <div style={{ padding:"16px 20px", borderBottom:`1px solid ${C.fog}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <h3 style={{ margin:0, fontWeight:700, fontSize:14, color:C.ink }}>Weekly Log (Recent 6 Sundays)</h3>
-          {isAdmin && <Badge label={`${allEntries.length} members`} color={C.blue}/>}
-        </div>
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-            <thead>
-              <tr style={{ background:C.fog }}>
-                <th style={{ textAlign:"left", padding:"10px 16px", color:C.slate, fontWeight:600, fontSize:11, textTransform:"uppercase", letterSpacing:.5 }}>Member</th>
-                {recent.map(w=><th key={w} style={{ padding:"10px 10px", color:C.slate, fontWeight:600, fontSize:11, textTransform:"uppercase", letterSpacing:.3, textAlign:"center" }}>{w}</th>)}
-                <th style={{ padding:"10px 14px", color:C.slate, fontWeight:600, fontSize:11, textTransform:"uppercase", letterSpacing:.5 }}>Rate</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allEntries.map(([name,rec])=>{
-                const recent6 = rec.slice(-6);
-                const pct = Math.round(recent6.filter(Boolean).length/recent6.length*100);
-                return (
-                  <tr key={name} style={{ borderTop:`1px solid ${C.fog}` }}>
-                    <td style={{ padding:"10px 16px" }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                        <Av name={name} size={26}/>
-                        <span style={{ fontWeight:500, color:C.ink, whiteSpace:"nowrap" }}>{name}</span>
-                      </div>
-                    </td>
-                    {recent6.map((v,i)=>(
-                      <td key={i} style={{ textAlign:"center", padding:"10px 10px" }}>
-                        <div style={{ width:22,height:22,borderRadius:"50%",background:v?`${C.green}18`:`${C.rose2}10`,display:"inline-flex",alignItems:"center",justifyContent:"center" }}>
-                          <Ico.check size={12} color={v?C.green:C.cloud} sw={2.5}/>
-                        </div>
-                      </td>
-                    ))}
-                    <td style={{ padding:"10px 14px" }}>
-                      <Badge label={`${pct}%`} color={pct>=90?C.green:pct>=75?C.blue:C.slate}/>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      {/* Live Attendance Modal */}
-      <Modal open={liveModal} onClose={()=>setLiveModal(false)} title="Generate Live Attendance">
-        <Inp label="Event Name" value={liveForm.event} onChange={v=>setLiveForm({...liveForm,event:v})} placeholder="Sunday Worship" required/>
-        <Inp label="Date" type="date" value={liveForm.date} onChange={v=>setLiveForm({...liveForm,date:v})} required/>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
-          <Inp label="Start Time" type="time" value={liveForm.timeStart} onChange={v=>setLiveForm({...liveForm,timeStart:v})}/>
-          <Inp label="End Time" type="time" value={liveForm.timeEnd} onChange={v=>setLiveForm({...liveForm,timeEnd:v})}/>
-        </div>
-        <Inp label="Branch" value={liveForm.branch} onChange={v=>setLiveForm({...liveForm,branch:v})} options={BRANCHES}/>
-        {activeLive ? (
-          <div style={{ textAlign:"center", marginTop:8 }}>
-            <div style={{ fontSize:12, color:C.slate, marginBottom:12 }}>Scan to mark attendance · Expires {liveForm.timeEnd}</div>
-            <div style={{ display:"flex", justifyContent:"center", marginBottom:12 }}>
-              <QRDisp data={`jil://attend?e=${liveForm.event}&d=${liveForm.date}&b=${liveForm.branch}`} size={160}/>
-            </div>
-            <div style={{ background:C.amber3, borderRadius:R.md, padding:"10px 14px", fontSize:12, color:C.amber, marginBottom:14 }}>
-              ⏰ Live until {liveForm.date} {liveForm.timeEnd}
-            </div>
-            <Btn label="Close Live Session" onClick={()=>{ setActiveLive(null); setLiveModal(false); }} outline danger sm/>
-          </div>
-        ) : (
-          <Btn label="Start Live Attendance" icon={Ico.qr} onClick={()=>setActiveLive(true)} full/>
-        )}
-      </Modal>
-    </div>
-  );
-};
-
 /* ── FINANCE ──────────────────────────── */
 const FinancePage = ({ role, user }) => {
   const isAdmin = role!=="regular";
@@ -1656,7 +1526,7 @@ export default function App() {
       case "dashboard":  return <Dashboard    role={role} user={user}/>;
       case "attendance": return role === "regular"
   ? <MyAttendancePage />
-  : <AttendancePage role={role} user={user}/>;
+  : <AttendancePage />;
       case "finance":    return <FinancePage  role={role} user={user}/>;
       case "reports":    return <ReportsPage  role={role}/>;
       case "members":    return <MembersPage  role={role}/>;
