@@ -15,7 +15,6 @@ const C = {
 const R = { xs:"6px", sm:"10px", md:"14px", lg:"18px", xl:"24px", xxl:"32px", full:"9999px" };
 const SH = { sm:"0 2px 8px rgba(0,0,0,.07)", md:"0 4px 20px rgba(0,0,0,.09)" };
 
-const BRANCHES     = ["Main – Pinamalayan","Sta. Rita","Buli","Inclanay","Luma"];
 const CATEGORIES   = ["Official Member","First Timer","Guest"];
 const MEMBER_TYPES = ["Kids","Youth","Young Adult","Men","Women","Senior"];
 
@@ -229,6 +228,7 @@ export default function MembersPage({ role }) {
     branch:"Main – Pinamalayan", lifegroup_leader:""
   });
   const [uploadState, setUploadState] = useState({ status:"idle", rows:[], error:"" });
+  const [branches, setBranches] = useState([]);
   const fileInputRef = useRef(null);
   const mob = useIsMobile();
 
@@ -245,7 +245,17 @@ export default function MembersPage({ role }) {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchMembers(); }, [fetchMembers]);
+  useEffect(() => {
+  fetchMembers();
+  // ADD these 3 lines:
+  supabase
+    .from("branches")
+    .select("*, parent:parent_id(name)")
+    .order("name")
+    .then(({ data }) => {
+      if (data) setBranches(data);
+    });
+    }, [fetchMembers]);
 
   useEffect(() => {
     if (qrMember && qrCanvasRef.current) {
