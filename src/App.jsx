@@ -1982,10 +1982,7 @@ const deleteBranch = async (b) => {
         )}
         <Btn label={saving?"Saving…":"Add Branch"} icon={Ico.plus} onClick={addBranch} full/>
       </Modal>
-    </div>
-  );
-
-<Modal open={editModal} onClose={()=>setEditModal(false)} title="Edit Branch">
+        <Modal open={editModal} onClose={()=>setEditModal(false)} title="Edit Branch">
   <Inp label="Branch Name" value={editForm.name} onChange={v=>setEditForm({...editForm,name:v})} required/>
   <Inp label="Address (optional)" value={editForm.address} onChange={v=>setEditForm({...editForm,address:v})}/>
   <div style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:14 }}>
@@ -1998,7 +1995,8 @@ const deleteBranch = async (b) => {
   </div>
   <Btn label={saving?"Saving…":"Save Changes"} icon={Ico.check} onClick={saveBranch} full/>
 </Modal>
-
+    </div>
+  );
 };
 
 const UserManagementPage = ({ role }) => {
