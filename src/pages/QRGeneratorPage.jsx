@@ -16,15 +16,6 @@ const C = {
 const R = { xs:"6px", sm:"10px", md:"14px", lg:"18px", xl:"24px", xxl:"32px", full:"9999px" };
 const SH = { sm:"0 2px 8px rgba(0,0,0,.07)", md:"0 4px 20px rgba(0,0,0,.09)", lg:"0 8px 40px rgba(0,0,0,.13)" };
 
-const [branches,    setBranches]    = useState([]);
-
-// add inside the existing useEffect that calls fetchEvents():
-useEffect(() => {
-  fetchEvents();
-  supabase.from("branches").select("*, parent:parent_id(name)").order("name")
-    .then(({ data }) => { if (data) setBranches(data); });
-}, [fetchEvents]);
-
 // ── Shared components ────────────────────────────────────────
 const Inp = ({ label, type="text", value, onChange, required, options }) => (
   <div style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:16 }}>
@@ -208,7 +199,8 @@ export default function QRGeneratorPage() {
   const [date,        setDate]        = useState(todayDate());
   const [serviceTime, setServiceTime] = useState(defaultServiceTime());
   const [expiry,      setExpiry]      = useState(defaultExpiry());
-  const [branch,      setBranch]      = useState(BRANCHES[0]);
+  const [branch,      setBranch]      = useState("");
+  const [branches,    setBranches]    = useState([]);
 
   const [activeEvent, setActiveEvent] = useState(null);
   const [history,     setHistory]     = useState([]);
@@ -272,7 +264,11 @@ export default function QRGeneratorPage() {
     setLoadingPage(false);
   }, [buildQR]);
 
-  useEffect(() => { fetchEvents(); }, [fetchEvents]);
+  useEffect(() => {
+  fetchEvents();
+  supabase.from("branches").select("*, parent:parent_id(name)").order("name")
+    .then(({ data }) => { if (data) setBranches(data); });
+  }, [fetchEvents]);
 
   // ── Countdown ──────────────────────────────────────────────
   useEffect(() => {
