@@ -1110,13 +1110,21 @@ const FinancePage = ({ role, user }) => {
   const [tab, setTab] = useState("overview");
   const [form, setForm] = useState({ type:"Tithes", amount:"", note:"" });
   const [done, setDone] = useState(false);
+  const [records, setRecords] = useState([]);
   const mob = useIsMobile();
 
-  const myData = FINANCE_DATA.filter(f=>f.member===user.name);
+  useEffect(() => {
+    const q = isAdmin
+      ? supabase.from("giving").select("*, members(name, branch)").order("created_at", { ascending: false })
+      : supabase.from("giving").select("*").eq("member_id", user.memberId).order("created_at", { ascending: false });
+    q.then(({ data }) => { if (data) setRecords(data); });
+  }, []);
+
+  const myData = records;
   const myTotal = myData.reduce((a,f)=>a+f.amount,0);
   const pts = Math.floor(myTotal/100)*5;
-  const totals = FINANCE_TYPES.map(t=>({ type:t, total:FINANCE_DATA.filter(f=>f.type===t).reduce((a,f)=>a+f.amount,0) }));
-  const grandTotal = FINANCE_DATA.reduce((a,f)=>a+f.amount,0);
+  const totals = FINANCE_TYPES.map(t=>({ type:t, total:records.filter(f=>f.type===t).reduce((a,f)=>a+f.amount,0) }));
+  const grandTotal = records.reduce((a,f)=>a+f.amount,0);
 
   return (
     <div>
@@ -1133,7 +1141,7 @@ const FinancePage = ({ role, user }) => {
               <Card style={{ background:`linear-gradient(135deg,#15803D,#16A34A)`, border:"none" }}>
                 <div style={{ color:"rgba(255,255,255,.6)", fontSize:12 }}>My Total Giving</div>
                 <div style={{ color:"#fff", fontSize:30, fontWeight:800, margin:"4px 0" }}>₱{myTotal.toLocaleString()}</div>
-                <div style={{ color:"rgba(255,255,255,.6)", fontSize:12 }}>{myData.length} transactions this month</div>
+                <div style={{ color:"rgba(255,255,255,.6)", fontSize:12 }}>{myData.length} transactions</div>
               </Card>
               <Card>
                 <div style={{ color:C.slate, fontSize:12, marginBottom:6 }}>Faithfulness Points</div>
@@ -1150,8 +1158,8 @@ const FinancePage = ({ role, user }) => {
           {isAdmin && (
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))", gap:12, marginBottom:18 }}>
               <StatTile icon={Ico.finance} label="Total Collected" value={`₱${grandTotal.toLocaleString()}`} color={C.green}/>
-              <StatTile icon={Ico.users}   label="Contributors"    value={new Set(FINANCE_DATA.map(f=>f.member)).size} color={C.blue}/>
-              <StatTile icon={Ico.report}  label="Transactions"    value={FINANCE_DATA.length} color={C.violet2}/>
+              <StatTile icon={Ico.users}   label="Contributors"    value={new Set(records.map(f=>f.member_id)).size} color={C.blue}/>
+              <StatTile icon={Ico.report}  label="Transactions"    value={records.length} color={C.violet2}/>
             </div>
           )}
           <Card>
@@ -1166,7 +1174,7 @@ const FinancePage = ({ role, user }) => {
                       <span style={{ fontSize:13, fontWeight:500, color:C.ink }}>{t.type}</span>
                       <span style={{ fontWeight:700, color:c, fontSize:13 }}>₱{t.total.toLocaleString()}</span>
                     </div>
-                    <Bar value={t.total} max={Math.max(...totals.map(x=>x.total))} color={c}/>
+                    <Bar value={t.total} max={Math.max(...totals.map(x=>x.total))||1} color={c}/>
                   </div>
                 );
               })}
@@ -1194,14 +1202,20 @@ const FinancePage = ({ role, user }) => {
               <Inp label="Note (optional)" value={form.note} onChange={v=>setForm({...form,note:v})} placeholder="e.g. Sunday June 8"/>
               <Btn label="Submit Giving" icon={Ico.send} onClick={async () => {
                 if (!form.amount || !form.type) return;
-                const { error } = await supabase.from("giving").insert([{
+                const { data, error } = await supabase.from("giving").insert([{
                   type: form.type,
                   amount: parseFloat(form.amount),
                   note: form.note,
                   date: new Date().toISOString().split("T")[0],
-                }]);
+                  member_id: user.memberId || null,
+                }]).select();
+                console.log("giving insert →", { data, error });
                 if (error) alert("Failed: " + error.message);
-                else { setDone(true); setForm({ type:"Tithes", amount:"", note:"" }); }
+                else {
+                  setDone(true);
+                  setForm({ type:"Tithes", amount:"", note:"" });
+                  if (data?.[0]) setRecords(prev => [data[0], ...prev]);
+                }
               }} full/>
             </>
           )}
@@ -1223,15 +1237,18 @@ const FinancePage = ({ role, user }) => {
                 </tr>
               </thead>
               <tbody>
-                {FINANCE_DATA.map(f=>(
-                  <tr key={f.id} style={{ borderTop:`1px solid ${C.fog}` }}>
-                    <td style={{ padding:"11px 16px" }}><div style={{ display:"flex",alignItems:"center",gap:8 }}><Av name={f.member} size={26}/><span style={{fontWeight:500,color:C.ink}}>{f.member}</span></div></td>
-                    <td style={{ padding:"11px 16px" }}><Badge label={f.type} color={C.blue}/></td>
-                    <td style={{ padding:"11px 16px", fontWeight:700, color:C.green }}>₱{f.amount.toLocaleString()}</td>
-                    <td style={{ padding:"11px 16px", color:C.mist }}>{f.date}</td>
-                    <td style={{ padding:"11px 16px", color:C.mist, fontSize:12 }}>{f.branch}</td>
-                  </tr>
-                ))}
+                {records.length === 0
+                  ? <tr><td colSpan={5} style={{ padding:"24px 16px", color:C.mist, textAlign:"center" }}>No records yet.</td></tr>
+                  : records.map((f,i)=>(
+                    <tr key={f.id||i} style={{ borderTop:`1px solid ${C.fog}` }}>
+                      <td style={{ padding:"11px 16px" }}><div style={{ display:"flex",alignItems:"center",gap:8 }}><Av name={f.members?.name||"—"} size={26}/><span style={{fontWeight:500,color:C.ink}}>{f.members?.name||"—"}</span></div></td>
+                      <td style={{ padding:"11px 16px" }}><Badge label={f.type} color={C.blue}/></td>
+                      <td style={{ padding:"11px 16px", fontWeight:700, color:C.green }}>₱{(f.amount||0).toLocaleString()}</td>
+                      <td style={{ padding:"11px 16px", color:C.mist }}>{f.date}</td>
+                      <td style={{ padding:"11px 16px", color:C.mist, fontSize:12 }}>{f.members?.branch||"—"}</td>
+                    </tr>
+                  ))
+                }
               </tbody>
             </table>
           </div>
