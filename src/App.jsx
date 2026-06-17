@@ -1962,7 +1962,7 @@ const UserManagementPage = ({ role }) => {
 
   useEffect(() => {
     Promise.all([
-      supabase.from("profiles").select("*, branches(name)").order("name"),
+      supabase.from("profiles").select("id, name, role, branch_id, member_id, email, branches(name)").order("name"),
       supabase.from("members").select("id, name, member_code").order("name"),
       supabase.from("branches").select("id, name").order("name"),
     ]).then(([u, m, b]) => {
@@ -2043,11 +2043,16 @@ const UserManagementPage = ({ role }) => {
   };
 
   const resetPassword = async (u) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(u.email, {
+    const email = u.name;
+    if (!email) {
+      setToast({ msg:"No email found for this user", type:"error" });
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin,
     });
     if (error) setToast({ msg:"Reset failed: " + error.message, type:"error" });
-    else setToast({ msg:`Password reset sent to ${u.email}`, type:"success" });
+    else setToast({ msg:`Password reset sent to ${email}`, type:"success" });
   };
 
   const ROLE_COLORS = {
