@@ -2508,7 +2508,7 @@ const AuditLogPage = () => {
       .then(({ data }) => { if (data) setLogs(data); setLoading(false); });
   }, []);
 
-  const ACTION_FILTERS = ["all","login","member_created","member_updated","finance_submitted","attendance_recorded","category_added","category_deleted","branch_added","branch_deleted","user_updated"];
+  const ACTION_FILTERS = ["all","login","member_created","member_updated","finance_submitted","attendance_recorded","category_added","category_deleted","branch_added","branch_deleted","user_updated","user_role_changed","user_deactivated","user_activated","user_deleted"];
 
   const actionColor = (a) => {
     if (!a) return C.slate;
