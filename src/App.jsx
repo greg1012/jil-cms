@@ -809,10 +809,13 @@ const GamStrip = ({ user }) => {
 const logAction = async (action, details, entity, entityId) => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    if (!session) {
+      alert("logAction: no session");
+      return;
+    }
     const user = session.user;
     const { data: profile } = await supabase.from("profiles").select("name").eq("id", user.id).maybeSingle();
-    await supabase.from("audit_logs").insert([{
+    const { error } = await supabase.from("audit_logs").insert([{
       user_id: user.id,
       user_name: profile?.name || user.email || "Unknown",
       action,
@@ -820,9 +823,10 @@ const logAction = async (action, details, entity, entityId) => {
       entity: entity || null,
       entity_id: entityId ? String(entityId) : null,
     }]);
-  } catch (err) { console.error("logAction:", err); }
+    if (error) alert("logAction insert error: " + error.message);
+    else alert("logAction success: " + action);
+  } catch (err) { alert("logAction exception: " + err.message); }
 };
-
 /* ═══════════════════════════════════════════════════════════
    PAGES
 ═══════════════════════════════════════════════════════════ */
