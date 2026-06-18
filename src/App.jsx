@@ -1848,6 +1848,7 @@ const BranchesPage = () => {
   const [form, setForm] = useState({ name:"", address:"", parent_id:"" });
   const [saving, setSaving] = useState(false);
   const colors=[C.blue,C.violet2,C.green,C.amber,C.rose2];
+  const [toast, setToast] = useState(null);
 
   useEffect(() => {
     supabase.from("branches").select("*").order("name")
@@ -1874,10 +1875,11 @@ const saveBranch = async () => {
     address: editForm.address,
     parent_id: editForm.parent_id || null,
   }).eq("id", editTarget.id);
-  if (error) alert("Failed: " + error.message);
+  if (error) setToast({ msg:"Failed: " + error.message, type:"error" });
   else {
     setBranches(prev => prev.map(b => b.id===editTarget.id ? {...b,...editForm} : b));
     setEditModal(false);
+    setToast({ msg:`"${editForm.name}" updated!`, type:"success" });
   }
   setSaving(false);
 };
@@ -1885,8 +1887,12 @@ const saveBranch = async () => {
 const deleteBranch = async (b) => {
   if (!confirm(`Delete "${b.name}"? Sub-branches will become root branches.`)) return;
   const { error } = await supabase.from("branches").delete().eq("id", b.id);
-  if (error) alert("Failed: " + error.message);
-  else setBranches(prev => prev.filter(x => x.id !== b.id));
+  if (error) {
+    setToast({ msg:"Failed: " + error.message, type:"error" });
+  } else {
+    setBranches(prev => prev.filter(x => x.id !== b.id));
+    setToast({ msg:`"${b.name}" deleted`, type:"warn" });
+  }
 };
   
   const addBranch = async () => {
@@ -1895,11 +1901,12 @@ const deleteBranch = async (b) => {
     const { data, error } = await supabase.from("branches")
       .insert([{ name: form.name, address: form.address, parent_id: form.parent_id || null }])
       .select().single();
-    if (error) alert("Failed: " + error.message);
+     if (error) setToast({ msg:"Failed: " + error.message, type:"error" });
     else {
       setBranches(prev => [...prev, data]);
       setForm({ name:"", address:"", parent_id:"" });
       setModal(false);
+      setToast({ msg:`"${data.name}" branch added!`, type:"success" });
     }
     setSaving(false);
   };
@@ -2014,7 +2021,6 @@ const UserManagementPage = ({ role }) => {
   const [toast, setToast] = useState(null);
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("all");
-  const [toast, setToast] = useState(null);
   const mob = useIsMobile();
 
   useEffect(() => {
