@@ -2574,10 +2574,12 @@ const AuditLogPage = () => {
 
 /* ── APP SETTINGS ──────────────────────────── */
 const AppSettingsPage = () => {
-  const [settings, setSettings] = useState({ church_name:"", address:"", contact_email:"", contact_phone:"", logo_url:"" });
-  const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
-  const [loading, setLoading] = useState(true);
+const [settings, setSettings] = useState({ church_name:"", address:"", contact_email:"", contact_phone:"", logo_url:"" });
+const [saving, setSaving] = useState(false);
+const [toast, setToast] = useState(null);
+const [loading, setLoading] = useState(true);
+const [logoFile, setLogoFile] = useState(null);
+const [logoUploading, setLogoUploading] = useState(false);
 
   useEffect(() => {
     supabase.from("app_settings").select("key, value")
@@ -2616,13 +2618,37 @@ const AppSettingsPage = () => {
         <Inp label="Address" value={settings.address} onChange={v=>setSettings({...settings,address:v})} placeholder="e.g. Pinamalayan, Oriental Mindoro"/>
         <Inp label="Contact Email" value={settings.contact_email} onChange={v=>setSettings({...settings,contact_email:v})} placeholder="e.g. jilpinamalayan@gmail.com"/>
         <Inp label="Contact Phone" value={settings.contact_phone} onChange={v=>setSettings({...settings,contact_phone:v})} placeholder="e.g. 09XX-XXX-XXXX"/>
-        <Inp label="Logo URL" value={settings.logo_url} onChange={v=>setSettings({...settings,logo_url:v})} placeholder="https://..."/>
-        {settings.logo_url && (
-          <div style={{ marginTop:-8, marginBottom:14, display:"flex", alignItems:"center", gap:10 }}>
-            <img src={settings.logo_url} alt="Logo" style={{ width:48, height:48, objectFit:"cover", borderRadius:R.md, border:`1px solid ${C.fog}` }}/>
-            <span style={{ fontSize:12, color:C.mist }}>Logo preview</span>
-          </div>
-        )}
+        <div style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:14 }}>
+          <label style={{ fontSize:12, fontWeight:600, color:C.slate, letterSpacing:.2 }}>Church Logo</label>
+          <input type="file" accept="image/jpeg,image/png,image/svg+xml,image/webp"
+            onChange={e => setLogoFile(e.target.files[0])}/>
+          {logoFile && (
+            <div style={{ marginTop:8 }}>
+              <Btn sm label={logoUploading ? "Uploading…" : "Upload Logo"} onClick={async () => {
+                setLogoUploading(true);
+                const ext = logoFile.name.split(".").pop().toLowerCase();
+                const path = `logo-${Date.now()}.${ext}`;
+                const { error: upErr } = await supabase.storage.from("theme").upload(path, logoFile, { upsert: true });
+                if (upErr) {
+                  setToast({ msg:"Upload failed: " + upErr.message, type:"error" });
+                } else {
+                  const { data: { publicUrl } } = supabase.storage.from("theme").getPublicUrl(path);
+                  setSettings(prev => ({ ...prev, logo_url: publicUrl }));
+                  setLogoFile(null);
+                  setToast({ msg:"Logo uploaded!", type:"success" });
+                }
+                setLogoUploading(false);
+              }}/>
+            </div>
+          )}
+          {settings.logo_url && (
+            <div style={{ marginTop:8, display:"flex", alignItems:"center", gap:10 }}>
+              <img src={settings.logo_url} alt="Logo"
+                style={{ width:56, height:56, objectFit:"contain", borderRadius:R.md, border:`1px solid ${C.fog}`, background:C.fog, padding:4 }}/>
+              <span style={{ fontSize:12, color:C.mist }}>Current logo</span>
+            </div>
+          )}
+        </div>
         <Btn label={saving?"Saving…":"Save Changes"} icon={Ico.check} onClick={save} full/>
       </Card>
     </div>
