@@ -659,7 +659,7 @@ const ROLE_TAG = {
   superadmin: {tag:"Dev",      color:C.rose2},
 };
 
-const Sidebar = ({ role, page, setPage, user, onLogout, collapsed, setCollapsed, mobile, showMob, setShowMob }) => {
+const Sidebar = ({ role, page, setPage, user, onLogout, collapsed, setCollapsed, mobile, showMob, setShowMob, logo }) => {
   const menu = MENUS[role]||MENUS.regular;
   const rt = ROLE_TAG[role];
 
@@ -667,8 +667,11 @@ const Sidebar = ({ role, page, setPage, user, onLogout, collapsed, setCollapsed,
     <div style={{ width: mobile ? 260 : collapsed ? 64 : 224, background:C.ink, display:"flex", flexDirection:"column", height:"100%", transition:"width .22s", overflow:"hidden" }}>
       {/* Logo */}
       <div style={{ padding: collapsed&&!mobile ? "16px 0" : "20px 16px", display:"flex", alignItems:"center", gap:10, borderBottom:"1px solid rgba(255,255,255,.06)", justifyContent: collapsed&&!mobile?"center":"flex-start" }}>
-        <div style={{ width:36, height:36, borderRadius:R.md, background:"linear-gradient(135deg,#1D4ED8,#7C3AED)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-          <Ico.sparkle size={18} color="#fff"/>
+        <div style={{ width:36, height:36, borderRadius:R.md, background:"linear-gradient(135deg,#1D4ED8,#7C3AED)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, overflow:"hidden" }}>
+          {logo
+            ? <img src={logo} alt="Logo" style={{ width:"100%", height:"100%", objectFit:"contain" }}/>
+            : <Ico.sparkle size={18} color="#fff"/>
+          }
         </div>
         {(!collapsed||mobile) && (
           <div>
@@ -2759,7 +2762,13 @@ export default function App() {
   const [page, setPage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [showMob, setShowMob] = useState(false);
+  const [logoUrl, setLogoUrl] = useState("");
   const mob = useIsMobile();
+
+  useEffect(() => {
+    supabase.from("app_settings").select("value").eq("key", "logo_url").single()
+      .then(({ data }) => { if (data?.value) setLogoUrl(data.value); });
+  }, []);
 
   const renderPage = () => {
     const role = auth.profile.role;
@@ -2799,7 +2808,7 @@ export default function App() {
     );
   }
 
-  if (!auth) return <Login onLogin={loginWithEmail} error={error}/>;
+  if (!auth) return <Login onLogin={loginWithEmail} error={error} logo={logoUrl}/>;
 
   const role = auth.profile.role;
   const user = { name: auth.profile.name };
@@ -2809,7 +2818,7 @@ export default function App() {
       {/* Sidebar */}
       <Sidebar role={role} page={page} setPage={setPage} user={user} onLogout={logout}
         collapsed={collapsed} setCollapsed={setCollapsed}
-        mobile={mob} showMob={showMob} setShowMob={setShowMob}/>
+        mobile={mob} showMob={showMob} setShowMob={setShowMob} logo={logoUrl}/>
 
       {/* Main */}
       <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, overflow:"hidden" }}>
