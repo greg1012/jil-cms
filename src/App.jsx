@@ -2765,9 +2765,13 @@ export default function App() {
   const [logoUrl, setLogoUrl] = useState("");
   const mob = useIsMobile();
 
+  const [themeUrl, setThemeUrl] = useState("");
+
   useEffect(() => {
     supabase.from("app_settings").select("value").eq("key", "logo_url").single()
       .then(({ data }) => { if (data?.value) setLogoUrl(data.value); });
+    supabase.from("monthly_theme").select("image_url").eq("id", 1).single()
+      .then(({ data }) => { if (data?.image_url) setThemeUrl(data.image_url); });
   }, []);
 
   const renderPage = () => {
@@ -2808,7 +2812,7 @@ export default function App() {
     );
   }
 
-  if (!auth) return <Login onLogin={loginWithEmail} error={error} logo={logoUrl}/>;
+  if (!auth) return <Login onLogin={loginWithEmail} error={error} logo={logoUrl} bg={themeUrl}/>;
 
   const role = auth.profile.role;
   const user = { name: auth.profile.name };
