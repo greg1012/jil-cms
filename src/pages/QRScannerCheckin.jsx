@@ -1,6 +1,24 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabaseClient";
 
+const logAction = async (action, details, entity, entityId) => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
+    const user = session.user;
+    const { data: profile } = await supabase.from("profiles").select("name").eq("id", user.id).maybeSingle();
+    const { error } = await supabase.from("audit_logs").insert([{
+      user_id: user.id,
+      user_name: profile?.name || user.email || "Unknown",
+      action,
+      details: details || null,
+      entity: entity || null,
+      entity_id: entityId ? String(entityId) : null,
+    }]);
+    return error || null;
+  } catch (err) { return err; }
+};
+
 const C = {
   ink:"#0A0F1E", slate:"#64748B", mist:"#94A3B8", cloud:"#CBD5E1",
   fog:"#E8EDF5", white:"#FFFFFF", blue:"#1D4ED8", blue2:"#3B82F6",
