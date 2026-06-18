@@ -1,6 +1,23 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "../lib/supabaseClient";
 
+const logAction = async (action, details, entity, entityId) => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
+    const user = session.user;
+    const { data: profile } = await supabase.from("profiles").select("name").eq("id", user.id).maybeSingle();
+    const { error } = await supabase.from("audit_logs").insert([{
+      user_id: user.id,
+      user_name: profile?.name || user.email || "Unknown",
+      action, details: details || null,
+      entity: entity || null,
+      entity_id: entityId ? String(entityId) : null,
+    }]);
+    return error || null;
+  } catch (err) { return err; }
+};
+
 // ── Design tokens ─────────────────────────────────────────────
 const C = {
   ink:"#0A0F1E", ink2:"#1C2336", ink3:"#2E3A52",
@@ -14,6 +31,23 @@ const C = {
 };
 const R = { xs:"6px", sm:"10px", md:"14px", lg:"18px", xl:"24px", xxl:"32px", full:"9999px" };
 const SH = { sm:"0 2px 8px rgba(0,0,0,.07)", md:"0 4px 20px rgba(0,0,0,.09)", lg:"0 8px 40px rgba(0,0,0,.12)" };
+
+const logAction = async (action, details, entity, entityId) => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
+    const user = session.user;
+    const { data: profile } = await supabase.from("profiles").select("name").eq("id", user.id).maybeSingle();
+    const { error } = await supabase.from("audit_logs").insert([{
+      user_id: user.id,
+      user_name: profile?.name || user.email || "Unknown",
+      action, details: details || null,
+      entity: entity || null,
+      entity_id: entityId ? String(entityId) : null,
+    }]);
+    return error || null;
+  } catch (err) { return err; }
+};
 
 const CATEGORIES = ["Official Member","First Timer","Guest"];
 
@@ -268,6 +302,7 @@ function WalkInModal({ open, onClose, activeEvent, onSuccess }) {
     setMsg({ text:`${selected.name} checked in ✓`, type:"success" });
     setSaving(false);
     onSuccess?.();
+    logAction("attendance_recorded", `${selected.name} walk-in check-in`, "attendance", selected.id);
 
     // Auto-clear selection for next entry
     setTimeout(() => { setSelected(null); setQuery(""); setResults([]); setMsg(null); }, 1800);
@@ -451,6 +486,7 @@ function ManualOverrideModal({ open, onClose, onSuccess }) {
     setMsg({ text:`Attendance recorded for ${selected.name} on ${date} ✓`, type:"success" });
     setSaving(false);
     onSuccess?.();
+    logAction("attendance_recorded", `${selected.name} manual override for ${date}`, "attendance", selected.id);
     setTimeout(() => { reset(); }, 2000);
   };
 
