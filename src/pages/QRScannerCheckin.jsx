@@ -314,9 +314,9 @@ export default function QRScannerCheckin({ onCheckedIn }) {
       // Log to audit_logs
       // Log to audit_logs
       const { data: memberProfile } = await supabase.from("members").select("name").eq("id", profile.member_id).maybeSingle();
+      const { data: { user: debugUser } } = await supabase.auth.getUser();
       const logErr = await logAction("attendance_recorded", `${memberProfile?.name || "Member"} checked in for ${qrData.event}`, "attendance", profile.member_id);
-
-      notify(logErr ? `Checked in ✓ | LOG ERR: ${logErr.message || JSON.stringify(logErr)}` : `Checked in for ${qrData.event} ✓`, logErr ? "error" : "success");
+      notify(logErr ? `LOG ERR: ${logErr.message || JSON.stringify(logErr)}` : `Checked in ✓ | user:${debugUser?.id?.slice(0,8) || "NULL"}`, logErr ? "error" : "success");
       setCheckedIn(result);
       setStatus("success");
       onCheckedIn && onCheckedIn(result);
