@@ -252,15 +252,37 @@ export default function MembersPage({ role }) {
   const notify = (msg, type="success") => setToast({ msg, type });
 
   const fetchMembers = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("members")
-      .select("*")
-      .order("name", { ascending: true });
-    if (error) notify("Failed to load members: " + error.message, "error");
-    else setMembers(data || []);
-    setLoading(false);
-  }, []);
+  setLoading(true);
+  try {
+    let allMembers = [];
+    let from = 0;
+    const CHUNK = 1000;
+
+    while (true) {
+      const { data, error } = await supabase
+        .from("members")
+        .select("*")
+        .order("name", { ascending: true })
+        .range(from, from + CHUNK - 1);
+
+      if (error) {
+        notify("Failed to load members: " + error.message, "error");
+        break;
+      }
+
+      if (!data || data.length === 0) break;
+
+      allMembers = [...allMembers, ...data];
+      if (data.length < CHUNK) break;
+      from += CHUNK;
+    }
+
+    setMembers(allMembers);
+  } catch (err) {
+    notify("Unexpected error: " + err.message, "error");
+  }
+  setLoading(false);
+}, []);
 
   useEffect(() => {
   fetchMembers();
