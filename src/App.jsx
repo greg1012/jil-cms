@@ -1544,12 +1544,33 @@ const MyQRPage = ({ user }) => {
   }, [member]);
 
   const download = () => {
-    if (!canvasRef.current) return;
-    const link = document.createElement("a");
-    link.href = canvasRef.current.toDataURL("image/png");
-    link.download = `${member.name.replace(/\s+/g, "-")}-QR.png`;
-    link.click();
-  };
+  if (!canvasRef.current) return;
+  const qrCanvas = canvasRef.current;
+  const padding = 20;
+  const nameH = 44;
+  const out = document.createElement("canvas");
+  out.width = qrCanvas.width + padding * 2;
+  out.height = qrCanvas.height + nameH + padding * 2;
+  const ctx = out.getContext("2d");
+  // White background
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillRect(0, 0, out.width, out.height);
+  // Draw QR
+  ctx.drawImage(qrCanvas, padding, padding);
+  // Full name
+  ctx.fillStyle = "#0A0F1E";
+  ctx.font = "bold 16px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(member.name, out.width / 2, qrCanvas.height + padding + 22);
+  // Member code
+  ctx.fillStyle = "#94A3B8";
+  ctx.font = "12px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText(member.member_code, out.width / 2, qrCanvas.height + padding + 40);
+  const link = document.createElement("a");
+  link.href = out.toDataURL("image/png");
+  link.download = `${member.name.replace(/\s+/g, "-")}-QR.png`;
+  link.click();
+};
 
   const rank = getRank(member?.points || 0);
 
