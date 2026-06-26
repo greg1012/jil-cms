@@ -232,7 +232,7 @@ export default function MembersPage({ role }) {
   const [search,     setSearch]     = useState("");
   const [filterCat,  setFilterCat]  = useState("All");
   const [filterType, setFilterType] = useState("All");
-  const [filterStatus, setFilterStatus] = useState("Active"); // Active | Inactive | All
+  const [filterStatus, setFilterStatus] = useState("Active"); // Active | Delisted | Deceased | All
   const [view,       setView]       = useState("card"); // card | list
   const [showModal,  setShowModal]  = useState(false);
   const [tab,        setTab]        = useState("manual");
@@ -370,17 +370,17 @@ export default function MembersPage({ role }) {
   notify("QR downloaded ✓");
 };
   // ── Toggle active/inactive ─────────────────────────────────
-  const toggleActive = async (m) => {
-    const { error } = await supabase
-      .from("members")
-      .update({ is_active: !m.is_active })
-      .eq("id", m.id);
-    if (error) notify("Update failed: " + error.message, "error");
-    else {
-      notify(`${m.name} marked as ${!m.is_active ? "Active" : "Inactive"}`);
-      fetchMembers();
-    }
-  };
+  const setStatus = async (m, status) => {
+  const { error } = await supabase
+    .from("members")
+    .update({ status })
+    .eq("id", m.id);
+  if (error) notify("Update failed: " + error.message, "error");
+  else {
+    notify(`${m.name} marked as ${status}`);
+    fetchMembers();
+  }
+};
 
   const save = async () => {
   if (!form.name.trim()) { notify("Name is required", "warn"); return; }
@@ -573,11 +573,7 @@ export default function MembersPage({ role }) {
       (m.branch||"").toLowerCase().includes(q);
     const matchCat    = filterCat==="All"    || m.category===filterCat;
     const matchType   = filterType==="All"   || m.type===filterType;
-    const matchStatus = filterStatus==="All"
-      ? true
-      : filterStatus==="Active"
-        ? m.is_active !== false
-        : m.is_active === false;
+    const matchStatus = filterStatus==="All" || m.status === filterStatus;
     return matchSearch && matchCat && matchType && matchStatus;
   });
 
@@ -614,9 +610,9 @@ export default function MembersPage({ role }) {
 
       {/* Active / Inactive filter */}
       <div style={{ display:"flex", gap:6, marginBottom:12, flexWrap:"wrap" }}>
-        {["Active","Inactive","All"].map(s => (
+        {["Active","Delisted","Deceased","All"].map(s => (
           <Pill key={s} label={s} active={filterStatus===s} onClick={()=>setFilterStatus(s)}
-            color={s==="Active"?C.green:s==="Inactive"?C.rose2:C.slate}/>
+            color={s==="Active"?C.green:s==="Delisted"?C.amber:s==="Deceased"?C.rose2:C.slate}/>
         ))}
       </div>
 
@@ -653,7 +649,7 @@ export default function MembersPage({ role }) {
             <div style={{ display:"grid", gridTemplateColumns:`repeat(auto-fill,minmax(${mob?280:300}px,1fr))`, gap:14 }}>
               {filtered.map(m => {
                 const rank = getRank(m.points||0);
-                const isActive = m.is_active !== false;
+                const isActive = m.status === "Active";
                 return (
                   <Card key={m.id} hoverable style={{ opacity: isActive ? 1 : 0.65 }}>
                     <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:12 }}>
@@ -669,8 +665,8 @@ export default function MembersPage({ role }) {
                       </div>
                       <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
                         <Badge label={m.category} color={catColor(m.category)}/>
-                        <Badge label={isActive?"Active":"Inactive"}
-                          color={isActive?C.green:C.rose2}/>
+                        <Badge label={m.status||"Active"}
+                          color={m.status==="Active"?C.green:m.status==="Deceased"?C.rose2:C.amber}/>
                       </div>
                     </div>
 
@@ -700,9 +696,14 @@ export default function MembersPage({ role }) {
                         icon={({size,color})=><svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg>}/>
                       <Btn label="QR" outline sm onClick={()=>setQrMember(m)}
                         icon={({size,color})=><svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="5" y="5" width="3" height="3"/><rect x="16" y="5" width="3" height="3"/><rect x="5" y="16" width="3" height="3"/></svg>}/>
-                      <Btn label={isActive?"Deactivate":"Activate"} outline sm
-                        color={isActive?C.rose2:C.green}
-                        onClick={()=>toggleActive(m)}/>
+                      {isActive ? (
+                          <>
+                            <Btn label="Delist" outline sm color={C.amber} onClick={()=>setStatus(m,"Delisted")}/>
+                            <Btn label="Deceased" outline sm color={C.rose2} onClick={()=>setStatus(m,"Deceased")}/>
+                          </>
+                        ) : (
+                          <Btn label="Restore" outline sm color={C.green} onClick={()=>setStatus(m,"Active")}/>
+                        )}
                       {role==="superadmin" && (
                         <Btn label="Delete" outline sm danger onClick={()=>deleteMember(m.id,m.name)}
                           icon={({size,color})=><svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>}/>
@@ -772,16 +773,21 @@ export default function MembersPage({ role }) {
                             </span>
                           </td>
                           <td style={{ padding:"10px 14px" }}>
-                            <Badge label={isActive?"Active":"Inactive"}
-                              color={isActive?C.green:C.rose2}/>
+                            <Badge label={m.status||"Active"}
+                              color={m.status==="Active"?C.green:m.status==="Deceased"?C.rose2:C.amber}/>
                           </td>
                           <td style={{ padding:"10px 14px" }}>
                             <div style={{ display:"flex", gap:6 }}>
                               <Btn label="Edit" outline sm onClick={()=>startEdit(m)}/>
                               <Btn label="QR" outline sm onClick={()=>setQrMember(m)}/>
-                              <Btn label={isActive?"Deactivate":"Activate"} outline sm
-                                color={isActive?C.rose2:C.green}
-                                onClick={()=>toggleActive(m)}/>
+                              {isActive ? (
+                                  <>
+                                    <Btn label="Delist" outline sm color={C.amber} onClick={()=>setStatus(m,"Delisted")}/>
+                                    <Btn label="Deceased" outline sm color={C.rose2} onClick={()=>setStatus(m,"Deceased")}/>
+                                  </>
+                                ) : (
+                                  <Btn label="Restore" outline sm color={C.green} onClick={()=>setStatus(m,"Active")}/>
+                                )}
                               {role==="superadmin" && (
                                 <Btn label="Delete" outline sm danger onClick={()=>deleteMember(m.id,m.name)}/>
                               )}
