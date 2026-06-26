@@ -2187,7 +2187,7 @@ const UserManagementPage = ({ role }) => {
     };
 
     Promise.all([
-      supabase.from("profiles").select("id, name, role, branch_id, member_id, branches(name)").order("name"),
+      supabase.from("profiles").select("id, name, username, role, branch_id, member_id, branches(name)").order("name"),
       fetchAllMembers(),
       supabase.from("branches").select("id, name").order("name"),
     ]).then(([u, m, b]) => {
@@ -2381,9 +2381,11 @@ const UserManagementPage = ({ role }) => {
               <Card key={u.id} style={{ opacity: u.role==="deactivated"?.5:1 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:12 }}>
                   <Av name={u.name||u.email} size={40}/>
+                  // NEW
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontWeight:700, color:C.ink, fontSize:14 }}>{u.name||"—"}</div>
                     <div style={{ fontSize:11, color:C.mist, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.email}</div>
+                    {u.username && <div style={{ fontSize:11, color:C.blue, fontWeight:600 }}>@{u.username}</div>}
                   </div>
                   <Badge label={u.role==="superadmin"?"Dev":u.role} color={ROLE_COLORS[u.role]||C.slate}/>
                 </div>
@@ -2425,7 +2427,7 @@ const UserManagementPage = ({ role }) => {
             <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
               <thead>
                 <tr style={{ background:C.fog }}>
-                  {["User","Role","Branch","Linked Member","Actions"].map(h=>(
+                  {["User","Username","Role","Branch","Linked Member","Actions"].map(h=>(
                     <th key={h} style={{ textAlign:"left", padding:"10px 16px", color:C.slate, fontWeight:600, fontSize:11, textTransform:"uppercase", letterSpacing:.4, whiteSpace:"nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -2447,6 +2449,9 @@ const UserManagementPage = ({ role }) => {
                             <div style={{ fontSize:11, color:C.mist }}>{u.email}</div>
                           </div>
                         </div>
+                      </td>
+                      <td style={{ padding:"12px 16px", color:C.slate, fontSize:12 }}>
+                        {u.username ? `${u.username}` : "—"}
                       </td>
                       {/* Inline role select */}
                       <td style={{ padding:"12px 16px" }}>
@@ -2720,9 +2725,9 @@ const AuditLogPage = () => {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} style={{ padding:"28px 16px", textAlign:"center", color:C.mist }}>Loading…</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={5} style={{ padding:"28px 16px", textAlign:"center", color:C.mist }}>No audit logs yet.</td></tr>
+                  <tr><td colSpan={6} style={{ padding:"28px 16px", textAlign:"center", color:C.mist }}>Loading…</td></tr>
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan={6} style={{ padding:"28px 16px", textAlign:"center", color:C.mist }}>No users found.</td></tr>
               ) : filtered.map(l => (
                 <tr key={l.id} style={{ borderTop:`1px solid ${C.fog}` }}>
                   <td style={{ padding:"11px 16px" }}>
