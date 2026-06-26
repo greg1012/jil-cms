@@ -86,7 +86,7 @@ useEffect(() => {
       case "finance":       return <FinancePage role={role} user={user}/>;
       case "reports":       return role === "regular" ? <Dashboard role={role} user={user}/> : <ReportsPage role={role}/>;
       case "members":       return <MembersPage     role={role} user={user}/>;
-      case "announcements": return <AnnouncementsPage/>;
+      case "announcements": return <AnnouncementPage bg={annBgUrl} user={user} role={role}/>;
       case "qr":            return <QRGeneratorPage />;
       case "myqr":          return <MyQRPage        user={user}/>;
       case "scanner":       return <ScannerPage     role={role}/>;
