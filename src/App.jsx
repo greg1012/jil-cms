@@ -8,6 +8,7 @@ import { supabase } from "./lib/supabaseClient";
 import MyAttendancePage from './pages/MyAttendancePage';
 import AttendancePage from './pages/AttendancePage';
 import jsQR from "jsqr";
+import PrayerPage from './pages/PrayerPage';
 
 const C = {
   ink:"#0A0F1E", ink2:"#1C2336", ink3:"#2E3A52",
@@ -80,19 +81,19 @@ useEffect(() => {
       branchId: auth.profile.branch_id,
     };
     switch(page) {
-      case "dashboard":      return <Dashboard       role={role} user={user}/>;
-      case "attendance":     return role === "regular" ? <MyAttendancePage /> : <AttendancePage />;
+      case "dashboard":     return <Dashboard       role={role} user={user}/>;
+      case "attendance":    return role === "regular" ? <MyAttendancePage /> : <AttendancePage />;
       case "finance":       return <FinancePage role={role} user={user}/>;
-      case "reports": return role === "regular" ? <Dashboard role={role} user={user}/> : <ReportsPage role={role}/>;
-      case "members":        return <MembersPage     role={role}/>;
+      case "reports":       return role === "regular" ? <Dashboard role={role} user={user}/> : <ReportsPage role={role}/>;
+      case "members":       return <MembersPage     role={role} user={user}/>;
       case "announcements": return <AnnouncementsPage/>;
-      case "qr":             return <QRGeneratorPage />;
-      case "myqr":           return <MyQRPage        user={user}/>;
-      case "scanner":        return <ScannerPage     role={role}/>;
-      case "prayer":         return <PrayerPage/>;
-      case "branches":       return <BranchesPage/>;
-      case "settings": return <SettingsPage role={role} C={C}/>;
-      default:               return <Dashboard       role={role} user={user}/>;
+      case "qr":            return <QRGeneratorPage />;
+      case "myqr":          return <MyQRPage        user={user}/>;
+      case "scanner":       return <ScannerPage     role={role}/>;
+      case "prayer":        return <PrayerPage user={user} role={role}/>;
+      case "branches":      return <BranchesPage/>;
+      case "settings":      return <SettingsPage role={role} C={C}/>;
+      default:              return <Dashboard       role={role} user={user}/>;
     }
   };
 
@@ -751,6 +752,7 @@ const MENUS = {
   {id:"announcements",  label:"Announcements",I:Ico.bell},   
   {id:"qr",             label:"QR Generator", I:Ico.qr},
   {id:"scanner",        label:"QR Scanner",   I:Ico.scan},
+  {id:"prayer",         label:"Prayer Requests", I:Ico.prayer},
  ],
 superadmin: [
   {id:"dashboard",      label:"Dashboard",    I:Ico.home},
@@ -761,6 +763,7 @@ superadmin: [
   {id:"announcements",  label:"Announcements",I:Ico.bell},   
   {id:"qr",             label:"QR Generator", I:Ico.qr},
   {id:"scanner",        label:"QR Scanner",   I:Ico.scan},
+  {id:"prayer",         label:"Prayer Requests", I:Ico.prayer},
   {id:"branches",       label:"Branches",     I:Ico.branch},
   {id:"settings",       label:"Settings",     I:Ico.settings},
   ],
@@ -1581,42 +1584,6 @@ const QRPage = ({ role }) => {
           </Card>
         )}
       </div>
-    </div>
-  );
-};
-
-/* ── PRAYER ──────────────────────────── */
-const PrayerPage = () => {
-  const [text, setText] = useState("");
-  const [sent, setSent] = useState(false);
-  return (
-    <div>
-      <h2 style={{ margin:"0 0 18px", fontWeight:800, fontSize:20, color:C.ink }}>Prayer Requests</h2>
-      <Card style={{ maxWidth:520 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:18 }}>
-          <div style={{ width:42,height:42,borderRadius:R.md,background:C.violet3,display:"flex",alignItems:"center",justifyContent:"center" }}>
-            <Ico.prayer size={20} color={C.violet2}/>
-          </div>
-          <div>
-            <div style={{ fontWeight:700, fontSize:14, color:C.ink }}>Submit a Prayer Request</div>
-            <div style={{ fontSize:12, color:C.mist }}>Our pastors and prayer team will intercede for you.</div>
-          </div>
-        </div>
-        {sent ? (
-          <div style={{ textAlign:"center", padding:"28px 0" }}>
-            <div style={{ fontSize:40, marginBottom:10 }}>🙏</div>
-            <div style={{ fontWeight:700, fontSize:17, marginBottom:6, color:C.ink }}>Prayer Submitted</div>
-            <div style={{ color:C.slate, fontSize:13 }}>We are standing in prayer with you.</div>
-            <div style={{ marginTop:16 }}><Btn label="Submit Another" sm outline onClick={()=>{ setSent(false); setText(""); }}/></div>
-          </div>
-        ) : (
-          <>
-            <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Share your prayer request here…" rows={5}
-              style={{ width:"100%", padding:"11px 13px", borderRadius:R.md, border:`1.5px solid ${C.fog}`, fontSize:13, resize:"vertical", outline:"none", boxSizing:"border-box", marginBottom:14, color:C.ink, lineHeight:1.6 }}/>
-            <Btn label="Send Prayer Request" icon={Ico.send} onClick={()=>setSent(true)} full/>
-          </>
-        )}
-      </Card>
     </div>
   );
 };
