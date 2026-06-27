@@ -1038,7 +1038,7 @@ const EventDetailModal = ({ open, item, onClose, user }) => {
     if (!open || !item?.id) return;
     loadReactions();
     if (isBirthday) loadGreetings();
-  }, [open, item?.id]);
+  }, [open, item?.id, isBirthday]);
 
   const loadReactions = async () => {
     const { data } = await supabase.from("event_reactions")
