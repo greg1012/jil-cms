@@ -43,7 +43,6 @@ export default function App() {
   .then(({ data }) => {
     if (data) data.forEach(r => {
       if (r.key === "logo_url") setLogoUrl(r.value || "");
-      if (r.key === "announcement_bg_url") setAnnBgUrl(r.value || "");
     });
   });
     supabase.from("monthly_theme").select("image_url").eq("id", 1).single()
@@ -1057,7 +1056,7 @@ const EventDetailModal = ({ open, item, onClose, user }) => {
 // In loadGreetings, check after loading:
 const loadGreetings = async () => {
   const { data } = await supabase.from("birthday_greetings")
-    .select("*, members(name)").eq("event_id", item.id)
+    .select("*, members(name)").eq("event_id", eventId)
     .order("created_at", { ascending: false });
   setGreetings(data || []);
 
@@ -1085,23 +1084,17 @@ const loadGreetings = async () => {
   };
 
   const sendGreeting = async () => {
-    if (!newGreeting.trim() || !user?.memberId || alreadyGreeted) return;
-    setSending(true);
-
-    const { error } = await supabase.from("birthday_greetings").insert({
-      event_id: item.id, member_id: user.memberId, message: newGreeting.trim(),
-    });
-
-    if (error) {
-      if (error.code === "23505") {
-        setAlreadyGreeted(true); // unique constraint hit
-      }
-    } else {
-      setNewGreeting("");
-      await loadGreetings();
-    }
-    setSending(false);
-  };
+  if (!newGreeting.trim() || !user?.memberId) return;
+  setSending(true);
+  const { data: existing } = await supabase.from("birthday_greetings")
+    .select("id").eq("event_id", eventId).eq("member_id", user.memberId).maybeSingle();
+  if (existing) { setSending(false); return; } // ← just return, no setMsg
+  const { error } = await supabase.from("birthday_greetings").insert({
+    event_id: eventId, member_id: user.memberId, message: newGreeting.trim(),
+  });
+  if (!error) { setNewGreeting(""); await loadGreetings(); }
+  setSending(false);
+};
 
   if (!open || !item) return null;
 
@@ -1146,7 +1139,9 @@ const loadGreetings = async () => {
         </div>
       </div>
 
-      {alreadyGreeted ? (
+      {isBirthday && (
+        <div style={{ marginTop:4 }}>
+          {alreadyGreeted ? (
             <div style={{ background:C.green3, border:`1px solid ${C.green2}`,
               borderRadius:R.lg, padding:"12px 14px", fontSize:13,
               color:C.green, fontWeight:600, marginBottom:16, textAlign:"center" }}>
@@ -1168,6 +1163,33 @@ const loadGreetings = async () => {
               </button>
             </div>
           )}
+
+          {/* Greetings list — always visible */}
+          <div style={{ fontSize:12, fontWeight:600, color:C.mist, marginBottom:10,
+            textTransform:"uppercase", letterSpacing:.4 }}>
+            Birthday Greetings ({greetings.length})
+          </div>
+          {greetings.length === 0 ? (
+            <div style={{ background:C.fog, borderRadius:R.lg, padding:"20px",
+              textAlign:"center", color:C.mist, fontSize:13 }}>
+              No greetings yet — be the first! 🎂
+            </div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:10,
+              maxHeight:280, overflowY:"auto" }}>
+              {greetings.map(g => (
+                <div key={g.id} style={{ background:C.fog, borderRadius:R.lg,
+                  padding:"12px 14px", borderLeft:`3px solid ${C.rose2}` }}>
+                  <div style={{ fontWeight:700, fontSize:12, color:C.rose2, marginBottom:4 }}>
+                    {g.members?.name||"Someone"} 🎉
+                  </div>
+                  <div style={{ fontSize:13, color:C.ink, lineHeight:1.5 }}>{g.message}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </Modal>
   );
 };
