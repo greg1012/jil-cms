@@ -1554,6 +1554,7 @@ const Dashboard = ({ role, user }) => {
 };
 
 const BirthdayGreetings = ({ eventId, user }) => {
+  const [alreadyGreeted, setAlreadyGreeted] = useState(false);
   const [greetings, setGreetings] = useState([]);
   const [newGreeting, setNewGreeting] = useState("");
   const [sending, setSending] = useState(false);
@@ -1565,7 +1566,7 @@ const BirthdayGreetings = ({ eventId, user }) => {
 
   const loadGreetings = async () => {
     const { data } = await supabase.from("birthday_greetings")
-      .select("*, members(name)").eq("event_id", item.id)
+      .select("*, members(name)").eq("event_id", eventId)
       .order("created_at", { ascending: false });
     setGreetings(data || []);
 
@@ -1583,13 +1584,12 @@ const BirthdayGreetings = ({ eventId, user }) => {
   // Check if already greeted
   const { data: existing } = await supabase.from("birthday_greetings")
     .select("id")
-    .eq("event_id", item.id)
+    .eq("event_id", eventId)
     .eq("member_id", user.memberId)
     .maybeSingle();
 
   if (existing) {
-    setMsg?.({ text:"You've already sent a greeting for this birthday! 🎂", type:"warn" });
-    // For EventDetailModal in App.jsx, show inline message instead:
+    setAlreadyGreeted(true);
     setSending(false);
     return;
   }
