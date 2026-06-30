@@ -75,6 +75,7 @@ const Inp = ({ label, value, onChange, placeholder, options, required, type="tex
       <select value={value} onChange={e=>onChange(e.target.value)}
         style={{ padding:"10px 14px", border:`1.5px solid ${C.fog}`, borderRadius:R.md,
           fontSize:14, outline:"none", background:C.white, color:C.ink, appearance:"none" }}>
+        <option value="">— Select —</option>
         {options.map(o=><option key={o} value={o}>{o}</option>)}
       </select>
     ) : (
@@ -163,6 +164,20 @@ const logAction = async (action, details, entity, entityId) => {
       entity_id: entityId ? String(entityId) : null,
     }]);
   } catch { /* silent */ }
+};
+
+const parseEventDate = (dateStr) => {
+  if (!dateStr) return null;
+  const parsed = new Date(dateStr + (dateStr.includes(",") ? "" : `, ${new Date().getFullYear()}`));
+  return isNaN(parsed) ? null : parsed;
+};
+
+const isExpired = (dateStr) => {
+  const date = parseEventDate(dateStr);
+  if (!date) return false;
+  const twoDaysAgo = new Date();
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+  return date < twoDaysAgo;
 };
 
 // ── Announcement Detail Modal ─────────────────────────────────
@@ -272,19 +287,17 @@ const EventDetailModal = ({ open, item, onClose, user }) => {
 
   const [alreadyGreeted, setAlreadyGreeted] = useState(false);
 
-// In loadGreetings, check after loading:
-const loadGreetings = async () => {
-  const { data } = await supabase.from("birthday_greetings")
-    .select("*, members(name)").eq("event_id", item.id)
-    .order("created_at", { ascending: false });
-  setGreetings(data || []);
+  const loadGreetings = async () => {
+    const { data } = await supabase.from("birthday_greetings")
+      .select("*, members(name)").eq("event_id", item.id)
+      .order("created_at", { ascending: false });
+    setGreetings(data || []);
 
-  // Check if current user already greeted
-  if (user?.memberId) {
-    const mine = (data || []).find(g => g.member_id === user.memberId);
-    setAlreadyGreeted(!!mine);
-  }
-};
+    if (user?.memberId) {
+      const mine = (data || []).find(g => g.member_id === user.memberId);
+      setAlreadyGreeted(!!mine);
+    }
+  };
 
   const handleReact = async (emoji) => {
     if (!user?.memberId || loadingReact) return;
@@ -303,27 +316,26 @@ const loadGreetings = async () => {
   };
 
   const sendGreeting = async () => {
-  if (!newGreeting.trim() || !user?.memberId) return;
-  setSending(true);
+    if (!newGreeting.trim() || !user?.memberId) return;
+    setSending(true);
 
-  // Check if already greeted
-  const { data: existing } = await supabase.from("birthday_greetings")
-    .select("id")
-    .eq("event_id", item.id)
-    .eq("member_id", user.memberId)
-    .maybeSingle();
+    const { data: existing } = await supabase.from("birthday_greetings")
+      .select("id")
+      .eq("event_id", item.id)
+      .eq("member_id", user.memberId)
+      .maybeSingle();
 
-  if (existing) {
+    if (existing) {
+      setSending(false);
+      return;
+    }
+
+    const { error } = await supabase.from("birthday_greetings").insert({
+      event_id: item.id, member_id: user.memberId, message: newGreeting.trim(),
+    });
+    if (!error) { setNewGreeting(""); await loadGreetings(); }
     setSending(false);
-    return;
-  }
-
-  const { error } = await supabase.from("birthday_greetings").insert({
-    event_id: item.id, member_id: user.memberId, message: newGreeting.trim(),
-  });
-  if (!error) { setNewGreeting(""); await loadGreetings(); }
-  setSending(false);
-};
+  };
 
   if (!open || !item) return null;
 
@@ -335,7 +347,6 @@ const loadGreetings = async () => {
 
   return (
     <Modal open={open} onClose={onClose} width={520}>
-      {/* Header */}
       <div style={{ textAlign:"center", marginBottom:20 }}>
         <div style={{ fontSize:48, marginBottom:8 }}>{cfg.emoji}</div>
         <Badge label={cfg.label} color={cfg.color}/>
@@ -345,7 +356,6 @@ const loadGreetings = async () => {
         </div>
       </div>
 
-      {/* Reactions */}
       <div style={{ paddingTop:16, borderTop:`1px solid ${C.fog}`,
         marginBottom: isBirthday ? 20 : 0 }}>
         <div style={{ fontSize:12, fontWeight:600, color:C.mist, marginBottom:10,
@@ -370,7 +380,6 @@ const loadGreetings = async () => {
         </div>
       </div>
 
-      {/* Birthday greetings wall */}
       {isBirthday && (
         <div style={{ marginTop:4 }}>
           {alreadyGreeted ? (
@@ -396,7 +405,6 @@ const loadGreetings = async () => {
             </div>
           )}
 
-          {/* Greetings list — always visible */}
           <div style={{ fontSize:12, fontWeight:600, color:C.mist, marginBottom:10,
             textTransform:"uppercase", letterSpacing:.4 }}>
             Birthday Greetings ({greetings.length})
@@ -435,7 +443,7 @@ export default function AnnouncementPage({ bg, user, role }) {
   const [announcements, setAnnouncements] = useState([]);
   const [events,        setEvents]        = useState([]);
   const [aForm,         setAForm]         = useState({ title:"", body:"", tag:"Worship", date:"" });
-  const [eForm,         setEForm]         = useState({ name:"", type:"event", date:"", branch:"" });
+  const [eForm,         setEForm]         = useState({ name:"", type:"event", date:"" });
   const [saving,        setSaving]        = useState(false);
   const [toast,         setToast]         = useState(null);
   const [selectedAnn,   setSelectedAnn]   = useState(null);
@@ -444,12 +452,17 @@ export default function AnnouncementPage({ bg, user, role }) {
   const isAdmin = role === "admin" || role === "superadmin";
   const [bdaySuggestions, setBdaySuggestions] = useState([]);
 
-useEffect(() => {
-  const month = new Date().getMonth() + 1; // current month
-  supabase.from("members")
-    .select("id, name, birthdate")
-    .not("birthdate", "is", null)
-    .then(({ data }) => {
+  useEffect(() => {
+    const month = new Date().getMonth() + 1;
+    let query = supabase.from("members")
+      .select("id, name, birthdate")
+      .not("birthdate", "is", null);
+
+    if (role !== "superadmin" && user?.branchId) {
+      query = query.eq("branch_id", user.branchId);
+    }
+
+    query.then(({ data }) => {
       if (!data) return;
       const thisMonth = data.filter(m => {
         const d = new Date(m.birthdate);
@@ -457,19 +470,37 @@ useEffect(() => {
       });
       setBdaySuggestions(thisMonth);
     });
-}, []);
-
-  useEffect(() => {
-    supabase.from("announcements").select("*").order("created_at", { ascending:false })
-      .then(({ data }) => { if (data) setAnnouncements(data); });
-    supabase.from("events").select("*").order("date", { ascending:true })
-      .then(({ data }) => { if (data) setEvents(data); });
   }, []);
+
+  // ✅ FIXED: Use branch_id (UUID) for both announcements and events
+  useEffect(() => {
+    console.log("Filtering events by:", { role, branchId: user?.branchId });
+    let annQuery = supabase.from("announcements").select("*").order("created_at", { ascending:false });
+    let evtQuery = supabase.from("events").select("*").order("date", { ascending:true });
+
+    // Filter by branch_id for non-superadmin
+    if (role !== "superadmin" && user?.branchId) {
+      annQuery = annQuery.eq("branch_id", user.branchId);
+      evtQuery = evtQuery.eq("branch_id", user.branchId);
+    }
+
+    annQuery.then(({ data }) => { if (data) setAnnouncements(data.filter(a => !isExpired(a.date))); });
+    evtQuery.then(({ data }) => { if (data) setEvents(data.filter(e => !isExpired(e.date))); });
+  }, [role, user?.branchId]);
 
   const addAnnouncement = async () => {
     if (!aForm.title.trim()) return;
     setSaving(true);
-    const { data, error } = await supabase.from("announcements").insert([aForm]).select().single();
+    
+    // ✅ Insert with branch_id (UUID)
+    const payload = {
+      ...aForm,
+      branch_id: role === "superadmin" ? null : (user?.branchId || null)
+    };
+    
+    const { data, error } = await supabase.from("announcements")
+      .insert([payload]).select().single();
+    
     if (error) setToast({ msg:"Failed: "+error.message, type:"error" });
     else {
       setAnnouncements(prev=>[data,...prev]);
@@ -488,11 +519,20 @@ useEffect(() => {
   const addEvent = async () => {
     if (!eForm.name.trim()) return;
     setSaving(true);
-    const { data, error } = await supabase.from("events").insert([eForm]).select().single();
+    
+    // ✅ Insert with branch_id (UUID)
+    const payload = {
+      ...eForm,
+      branch_id: role === "superadmin" ? null : (user?.branchId || null)
+    };
+    
+    const { data, error } = await supabase.from("events")
+      .insert([payload]).select().single();
+    
     if (error) setToast({ msg:"Failed: "+error.message, type:"error" });
     else {
       setEvents(prev=>[...prev, data]);
-      setEForm({ name:"", type:"event", date:"", branch:"" });
+      setEForm({ name:"", type:"event", date:"" });
       setToast({ msg:"Event added!", type:"success" });
       logAction("event_added", `"${data.name}"`, "event", data.id);
     }
@@ -503,8 +543,6 @@ useEffect(() => {
     await supabase.from("events").delete().eq("id", id);
     setEvents(prev=>prev.filter(e=>e.id!==id));
   };
-
-  const tabs = ["announcements", "events", ...(isAdmin ? ["manage"] : [])];
 
   return (
     <div style={ bg ? {
@@ -550,7 +588,7 @@ useEffect(() => {
                       {a.tag && <Badge label={a.tag} color={color}/>}
                     </div>
                     <p style={{ margin:"0 0 5px", fontSize:13, color:C.slate, lineHeight:1.5 }}>
-                      {a.body}
+                      {a.body?.slice(0, 80)}...
                     </p>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                       <span style={{ fontSize:11, color:C.mist }}>{a.date}</span>
@@ -616,46 +654,46 @@ useEffect(() => {
             </Card>
 
             {bdaySuggestions.length > 0 && (
-  <Card style={{ marginBottom:16, background:C.rose3, border:`1px solid ${C.rose2}` }}>
-    <h3 style={{ margin:"0 0 12px", fontWeight:700, fontSize:13, color:C.rose }}>
-      🎂 Birthdays this month ({bdaySuggestions.length})
-    </h3>
-    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-      {bdaySuggestions.map(m => {
-        const bday = new Date(m.birthdate);
-        const day = bday.getDate();
-        const monthName = bday.toLocaleString("default", { month:"long" });
-        const alreadyAdded = events.some(e =>
-          e.type === "birthday" && e.name.toLowerCase().includes(m.name.toLowerCase())
-        );
-        return (
-          <div key={m.id} style={{ display:"flex", alignItems:"center",
-            justifyContent:"space-between", gap:10 }}>
-            <div>
-              <div style={{ fontWeight:600, fontSize:13, color:C.ink }}>{m.name}</div>
-              <div style={{ fontSize:11, color:C.rose }}>{monthName} {day}</div>
-            </div>
-            {alreadyAdded ? (
-              <span style={{ fontSize:11, color:C.green, fontWeight:600 }}>✓ Added</span>
-            ) : (
-              <button
-                onClick={() => {
-                  const bday = new Date(m.birthdate);
-                  const label = bday.toLocaleString("default", { month:"long" }) + " " + bday.getDate();
-                  setEForm({ name:m.name, type:"birthday", date:label, branch:"" });
-                }}
-                style={{ border:"none", background:C.rose2, color:C.white,
-                  borderRadius:R.full, padding:"5px 12px", cursor:"pointer",
-                  fontSize:12, fontWeight:600, flexShrink:0 }}>
-                + Add
-              </button>
+              <Card style={{ marginBottom:16, background:C.rose3, border:`1px solid ${C.rose2}` }}>
+                <h3 style={{ margin:"0 0 12px", fontWeight:700, fontSize:13, color:C.rose }}>
+                  🎂 Birthdays this month ({bdaySuggestions.length})
+                </h3>
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  {bdaySuggestions.map(m => {
+                    const bday = new Date(m.birthdate);
+                    const day = bday.getDate();
+                    const monthName = bday.toLocaleString("default", { month:"long" });
+                    const alreadyAdded = events.some(e =>
+                      e.type === "birthday" && e.name.toLowerCase().includes(m.name.toLowerCase())
+                    );
+                    return (
+                      <div key={m.id} style={{ display:"flex", alignItems:"center",
+                        justifyContent:"space-between", gap:10 }}>
+                        <div>
+                          <div style={{ fontWeight:600, fontSize:13, color:C.ink }}>{m.name}</div>
+                          <div style={{ fontSize:11, color:C.rose }}>{monthName} {day}</div>
+                        </div>
+                        {alreadyAdded ? (
+                          <span style={{ fontSize:11, color:C.green, fontWeight:600 }}>✓ Added</span>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              const bday = new Date(m.birthdate);
+                              const label = bday.toLocaleString("default", { month:"long" }) + " " + bday.getDate();
+                              setEForm({ name:m.name, type:"birthday", date:label });
+                            }}
+                            style={{ border:"none", background:C.rose2, color:C.white,
+                              borderRadius:R.full, padding:"5px 12px", cursor:"pointer",
+                              fontSize:12, fontWeight:600, flexShrink:0 }}>
+                            + Add
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
             )}
-          </div>
-        );
-      })}
-    </div>
-  </Card>
-)}
 
             <Card>
               <h3 style={{ margin:"0 0 14px", fontWeight:700, fontSize:14, color:C.ink }}>
@@ -667,8 +705,6 @@ useEffect(() => {
                 options={TYPE_OPTIONS}/>
               <Inp label="Date" value={eForm.date} onChange={v=>setEForm({...eForm,date:v})}
                 placeholder="e.g. June 14"/>
-              <Inp label="Branch" value={eForm.branch} onChange={v=>setEForm({...eForm,branch:v})}
-                options={["", ...BRANCHES]}/>
               <Btn label={saving?"Saving…":"Add Event"} onClick={addEvent} full
                 color={C.violet2}/>
             </Card>

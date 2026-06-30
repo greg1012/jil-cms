@@ -11,6 +11,57 @@ import jsQR from "jsqr";
 import PrayerPage from './pages/PrayerPage';
 import AnnouncementPage from './pages/AnnouncementPage';
 
+/* ════════════════════════════════════════════════════════════
+   BRANCH HIERARCHY & ACCESS CONTROL
+════════════════════════════════════════════════════════════ */
+
+const BRANCH_HIERARCHY = {
+  "Main – Pinamalayan": {
+    label: "Main – Pinamalayan",
+    isParent: true,
+    subBranches: ["Bacungan", "Bagong Silang", "Bukal", "Pamana", "Papandayan", "Pier"]
+  },
+  "Sta. Rita": { label: "Sta. Rita", isParent: false, subBranches: [] },
+  "Buli": { label: "Buli", isParent: false, subBranches: [] },
+  "Inclanay": { label: "Inclanay", isParent: false, subBranches: [] },
+  "Luma": { label: "Luma", isParent: false, subBranches: [] },
+  "Bacungan": { label: "Bacungan", isParent: false, subBranches: [], parent: "Main – Pinamalayan" },
+  "Bagong Silang": { label: "Bagong Silang", isParent: false, subBranches: [], parent: "Main – Pinamalayan" },
+  "Bukal": { label: "Bukal", isParent: false, subBranches: [], parent: "Main – Pinamalayan" },
+  "Pamana": { label: "Pamana", isParent: false, subBranches: [], parent: "Main – Pinamalayan" },
+  "Papandayan": { label: "Papandayan", isParent: false, subBranches: [], parent: "Main – Pinamalayan" },
+  "Pier": { label: "Pier", isParent: false, subBranches: [], parent: "Main – Pinamalayan" },
+};
+
+const getAccessibleBranches = (role, userBranch) => {
+  if (role === "superadmin") {
+    return Object.keys(BRANCH_HIERARCHY).filter(b => !BRANCH_HIERARCHY[b].parent);
+  }
+  if (!userBranch) return [];
+  if (role === "admin") {
+    const branchInfo = BRANCH_HIERARCHY[userBranch];
+    if (branchInfo?.isParent) {
+      return [userBranch, ...branchInfo.subBranches];
+    }
+    return [userBranch];
+  }
+  if (role === "member" || role === "regular") {
+    return [userBranch];
+  }
+  return [];
+};
+
+const filterByBranch = (items, role, userBranch, branchField = "branch") => {
+  const accessible = getAccessibleBranches(role, userBranch);
+  return items.filter(item => !item[branchField] || accessible.includes(item[branchField]));
+};
+
+const ALL_BRANCHES = Object.keys(BRANCH_HIERARCHY);
+
+const getBranchOptions = (role, userBranch) => {
+  return getAccessibleBranches(role, userBranch);
+};
+
 const C = {
   ink:"#0A0F1E", ink2:"#1C2336", ink3:"#2E3A52",
   slate:"#64748B", mist:"#94A3B8", cloud:"#CBD5E1",
@@ -21,6 +72,20 @@ const C = {
   amber:"#B45309", amber2:"#F59E0B", amber3:"#FEF3C7",
   rose:"#BE123C", rose2:"#F43F5E", rose3:"#FFE4E6",
   violet:"#6D28D9", violet2:"#8B5CF6", violet3:"#EDE9FE",
+};
+
+const parseEventDate = (dateStr) => {
+  if (!dateStr) return null;
+  const parsed = new Date(dateStr + (dateStr.includes(",") ? "" : `, ${new Date().getFullYear()}`));
+  return isNaN(parsed) ? null : parsed;
+};
+
+const isExpired = (dateStr) => {
+  const date = parseEventDate(dateStr);
+  if (!date) return false;
+  const twoDaysAgo = new Date();
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+  return date < twoDaysAgo;
 };
 /* ═══════════════════════════════════════════════════════════
    DESIGN SYSTEM
@@ -83,12 +148,14 @@ useEffect(() => {
     };
     switch(page) {
       case "dashboard":     return <Dashboard       role={role} user={user}/>;
-      case "attendance":    return role === "regular" ? <MyAttendancePage /> : <AttendancePage />;
+      case "attendance": return role === "regular"
+        ? <MyAttendancePage />
+        : <AttendancePage role={role} user={user}/>;
       case "finance":       return <FinancePage role={role} user={user}/>;
       case "reports":       return role === "regular" ? <Dashboard role={role} user={user}/> : <ReportsPage role={role}/>;
       case "members":       return <MembersPage     role={role} user={user}/>;
       case "announcements": return <AnnouncementPage bg="" user={user} role={role}/>;
-      case "qr":            return <QRGeneratorPage />;
+      case "qr":            return <QRGeneratorPage role={role} user={user}/>;
       case "myqr":          return <MyQRPage        user={user}/>;
       case "scanner":       return <ScannerPage     role={role}/>;
       case "prayer":        return <PrayerPage user={user} role={role}/>;
@@ -1307,10 +1374,16 @@ const Dashboard = ({ role, user }) => {
   const [selectedEvent, setSelectedEvent] = useState(null);
 
   useEffect(() => {
-    supabase.from("announcements").select("*").order("created_at", { ascending: false })
-      .then(({ data }) => { if (data) setAnnouncements(data); });
-    supabase.from("events").select("*").order("date", { ascending: true })
-      .then(({ data }) => { if (data) setEvents(data); });
+    let annQuery = supabase.from("announcements").select("*").order("created_at", { ascending: false });
+    let evtQuery = supabase.from("events").select("*").order("date", { ascending: true });
+
+    if (role !== "superadmin" && user?.branchId) {
+      annQuery = annQuery.eq("branch_id", user.branchId);
+      evtQuery = evtQuery.eq("branch_id", user.branchId);
+    }
+
+    annQuery.then(({ data }) => { if (data) setAnnouncements(data.filter(a => !isExpired(a.date))); });
+    evtQuery.then(({ data }) => { if (data) setEvents(data.filter(e => !isExpired(e.date))); });
     supabase.from("monthly_theme").select("image_url").eq("id", 1).single()
       .then(({ data }) => { if (data?.image_url) setThemeUrl(data.image_url); });
   }, []);

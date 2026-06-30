@@ -596,7 +596,7 @@ const ServiceReport = ({ serviceReports, mob }) => (
 // ════════════════════════════════════════════════════════════
 //  MAIN PAGE
 // ════════════════════════════════════════════════════════════
-export default function AttendancePage() {
+export default function AttendancePage({ role, user }) {
   const mob = useIsMobile();
 
   const [records, setRecords]   = useState([]);
@@ -645,42 +645,63 @@ export default function AttendancePage() {
   }, [activeEvent]);
 
   useEffect(() => {
-    supabase.from("branches").select("id, name").order("name")
-      .then(({ data, error:err }) => { if (!err) setBranches(data || []); });
+    supabase.from("branches").select("id, name, parent_id").order("name")
+  .then(({ data, error:err }) => { if (!err) setBranches(data || []); });
   }, []);
 
   const fetchAttendance = useCallback(async () => {
     setLoading(true); setError("");
     const fromISO = toISODate(weekStart);
     const toISO   = toISODate(weekEnd);
-    const { data, error:err } = await supabase.from("attendance")
-      .select(`id, service_date, present, created_at, note,
-        members(id, name, member_code, category, type),
-        branches(id, name),
-        service_events(id, event, time)`)
-      .gte("service_date", fromISO).lte("service_date", toISO)
-      .order("created_at", { ascending:false });
+
+    let query = supabase.from("attendance")
+  .select(`id, service_date, present, created_at, note,
+    members(id, name, member_code, category, type, branch, branch_id, branches(name)),
+    branches(id, name),
+    service_events(id, event, time, branch)`)
+  .gte("service_date", fromISO).lte("service_date", toISO)
+  .order("created_at", { ascending:false });
+
+  const { data, error:err } = await query;
 
     if (err) setError("Failed to load attendance: " + err.message);
     else {
-      const mapped = (data || []).map(r => ({
-        id:          r.id,
-        date:        r.service_date,
-        present:     r.present,
-        created_at:  r.created_at,
-        note:        r.note || "",
-        member_id:   r.members?.id,
-        member_name: r.members?.name || "—",
-        member_code: r.members?.member_code || "—",
-        category:    r.members?.category || "—",
-        type:        r.members?.type || "—",
-        branch_id:   r.branches?.id,
-        branch_name: r.branches?.name || "—",
-        event:       r.service_events?.event || "—",
-        time:        r.service_events?.time?.slice(0,5) || formatTime(r.created_at),
-      }));
-      setRecords(mapped);
-    }
+  const mapped = (data || []).map(r => ({
+    id:          r.id,
+    date:        r.service_date,
+    present:     r.present,
+    created_at:  r.created_at,
+    note:        r.note || "",
+    member_id:   r.members?.id,
+    member_name: r.members?.name || "—",
+    member_code: r.members?.member_code || "—",
+    category:    r.members?.category || "—",
+    type:        r.members?.type || "—",
+    branch_id:   r.branches?.id,
+    branch_name: r.members?.branches?.name || r.branches?.name || r.members?.branch || "—",
+    event:       r.service_events?.event || "—",
+    event_branch: r.service_events?.branch || "—",
+    time:        r.service_events?.time?.slice(0,5) || formatTime(r.created_at),
+  }));
+
+  let finalMapped = mapped;
+  if (role === "admin" && user?.branchId) {
+  const { data: branchData } = await supabase
+    .from("branches").select("id, name, parent_id");
+  const myBranch = branchData?.find(b => b.id === user.branchId);
+  const isSubBranch = !!myBranch?.parent_id;
+
+  const accessibleNames = isSubBranch
+    ? [myBranch?.name].filter(Boolean)
+    : [myBranch?.name, ...( branchData?.filter(b => b.parent_id === user.branchId) || []).map(b => b.name)].filter(Boolean);
+
+  finalMapped = mapped.filter(r =>
+    accessibleNames.includes(r.branch_name) || r.branch_name === "—"
+  );
+}
+
+  setRecords(finalMapped);
+}
     setLoading(false);
   }, [weekStart, weekEnd]);
 
@@ -920,7 +941,19 @@ export default function AttendancePage() {
                 border:`1.5px solid ${C.cloud}`, fontSize:13, outline:"none", color:C.ink }}/>
           </div>
           <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
-            {["All",...branches.map(b=>b.name)].map(b=>(
+            {["All", ...branches
+              .filter(b => {
+                if (role !== "admin") return true;
+                const myBranch = branches.find(x => x.id === user?.branchId);
+                if (myBranch?.parent_id) {
+                  // admin is a sub-branch — only show their own branch
+                  return b.id === user?.branchId;
+                }
+                // admin is a main branch — show their branch + sub-branches
+                return b.id === user?.branchId || b.parent_id === user?.branchId;
+              })
+              .map(b => b.name)
+            ].map(b=>(
               <Pill key={b} label={b} active={filterBranch===b} onClick={()=>setFilterBranch(b)} color={C.blue}/>
             ))}
           </div>
@@ -964,7 +997,7 @@ export default function AttendancePage() {
                         <Badge label={r.category||"—"} color={catColor(r.category)}/>
                       </td>
                       <td style={{ padding:"10px 14px", color:C.slate, fontSize:12 }}>{r.branch_name||"—"}</td>
-                      <td style={{ padding:"10px 14px", color:C.slate }}>{r.event||"—"}</td>
+                      <td style={{ padding:"10px 14px", color:C.slate }}>{r.event} {r.event_branch !== "—" ? `· ${r.event_branch}` : ""}</td>
                       <td style={{ padding:"10px 14px", color:C.slate, fontSize:12 }}>{r.date||"—"}</td>
                       <td style={{ padding:"10px 14px", color:C.slate, fontSize:12 }}>{r.time}</td>
                       <td style={{ padding:"10px 14px" }}>

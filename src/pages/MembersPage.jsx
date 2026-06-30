@@ -224,7 +224,7 @@ const ViewToggle = ({ view, setView }) => (
   </div>
 );
 
-export default function MembersPage({ role }) {
+export default function MembersPage({ role, user }) {
   const [members,    setMembers]    = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [saving,     setSaving]     = useState(false);
@@ -233,6 +233,7 @@ export default function MembersPage({ role }) {
   const [filterCat,  setFilterCat]  = useState("All");
   const [filterType, setFilterType] = useState("All");
   const [filterStatus, setFilterStatus] = useState("Active"); // Active | Delisted | Deceased | All
+  const [filterBranch, setFilterBranch] = useState("All");
   const [view,       setView]       = useState("card"); // card | list
   const [showModal,  setShowModal]  = useState(false);
   const [tab,        setTab]        = useState("manual");
@@ -242,7 +243,7 @@ export default function MembersPage({ role }) {
   const [form, setForm] = useState({
   name:"", birthdate:"", address:"", gender:"Male",
   category:"Official Member", type:"Young Adult",
-  branch:"Main – Pinamalayan", lifegroup_leader:""
+  branch:"", branch_id:"", lifegroup_leader:""
   });
   const [uploadState, setUploadState] = useState({ status:"idle", rows:[], error:"" });
   const [branches, setBranches] = useState([]);
@@ -265,16 +266,26 @@ export default function MembersPage({ role }) {
         .order("name", { ascending: true })
         .range(from, from + CHUNK - 1);
 
-      if (error) {
-        notify("Failed to load members: " + error.message, "error");
-        break;
-      }
-
+      if (error) { notify("Failed to load members: " + error.message, "error"); break; }
       if (!data || data.length === 0) break;
-
       allMembers = [...allMembers, ...data];
       if (data.length < CHUNK) break;
       from += CHUNK;
+    }
+
+    if (role === "admin" && user?.branchId) {
+      const { data: branchData } = await supabase
+        .from("branches")
+        .select("id, name, parent_id");
+
+      const myBranch = branchData?.find(b => b.id === user.branchId);
+      const isSubBranch = !!myBranch?.parent_id;
+
+      const accessibleBranches = isSubBranch
+        ? [myBranch?.name].filter(Boolean)
+        : [myBranch?.name, ...(branchData?.filter(b => b.parent_id === user.branchId) || []).map(b => b.name)].filter(Boolean);
+
+      allMembers = allMembers.filter(m => accessibleBranches.includes(m.branch));
     }
 
     setMembers(allMembers);
@@ -282,7 +293,7 @@ export default function MembersPage({ role }) {
     notify("Unexpected error: " + err.message, "error");
   }
   setLoading(false);
-}, []);
+}, [role, user?.branchId]);
 
   useEffect(() => {
   fetchMembers();
@@ -398,6 +409,7 @@ export default function MembersPage({ role }) {
     category:         form.category,
     type:             form.type,
     branch:           form.branch,
+    branch_id:        form.branch_id || null,
     lifegroup_leader: form.lifegroup_leader.trim(),
   };
 
@@ -443,6 +455,7 @@ export default function MembersPage({ role }) {
       category:         m.category || "Official Member",
       type:             m.type || "Young Adult",
       branch:           m.branch || "",
+      branch_id:        m.branch_id || "",
       lifegroup_leader: m.lifegroup_leader || "",
       gender:           m.gender || "",
     });
@@ -580,7 +593,8 @@ export default function MembersPage({ role }) {
     const matchCat    = filterCat==="All"    || m.category===filterCat;
     const matchType   = filterType==="All"   || m.type===filterType;
     const matchStatus = filterStatus==="All" || m.status === filterStatus;
-    return matchSearch && matchCat && matchType && matchStatus;
+    const matchBranch = filterBranch==="All" || m.branch === filterBranch;
+    return matchSearch && matchCat && matchType && matchStatus && matchBranch;
   });
 
   // ════════════════════════════════════════════════════════
@@ -637,6 +651,31 @@ export default function MembersPage({ role }) {
         ))}
       </div>
 
+      {/* Branch filter */}
+          <div style={{ display:"flex", gap:6, marginBottom:12, flexWrap:"wrap" }}>
+            <Pill label="All Branches" active={filterBranch==="All"} onClick={()=>setFilterBranch("All")} color={C.blue}/>
+            {branches
+              .filter(b => {
+                if (role !== "admin") return !b.parent_id;
+                const myBranch = branches.find(x => x.id === user?.branchId);
+                const isSubBranch = !!myBranch?.parent_id;
+                if (isSubBranch) return b.id === user?.branchId;
+                return b.id === myBranch?.id || b.parent_id === myBranch?.id;
+              })
+              .map(b => (
+                <Pill key={b.id}
+                  label={b.parent_id ? `↳ ${b.name}` : b.name.split("–")[0].trim()}
+                  active={filterBranch===b.name}
+                  onClick={()=>setFilterBranch(b.name)}
+                  color={b.parent_id ? C.slate : C.violet2}/>
+              ))
+            }
+            {role !== "admin" && branches.filter(b=>b.parent_id).map(b=>(
+              <Pill key={b.id} label={`↳ ${b.name}`} active={filterBranch===b.name}
+                onClick={()=>setFilterBranch(b.name)} color={C.slate}/>
+            ))}
+          </div>
+
       {/* Type filter */}
       <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
         {["All",...MEMBER_TYPES].map(t=>(
@@ -653,7 +692,7 @@ export default function MembersPage({ role }) {
       ) : (
         <>
           <div style={{ fontSize:12, color:C.mist, marginBottom:12 }}>
-            {filtered.length} member{filtered.length!==1?"s":""} · {filterStatus} · sorted alphabetically
+            {filtered.length} member{filtered.length!==1?"s":""} · {filterStatus} · {filterBranch==="All"?"All Branches":filterBranch} · sorted alphabetically
             {members.length !== filtered.length && ` (${members.length} total)`}
           </div>
 
@@ -974,15 +1013,18 @@ export default function MembersPage({ role }) {
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:5, marginBottom:14 }}>
               <label style={{ fontSize:12, fontWeight:600, color:C.slate, letterSpacing:.2 }}>Branch</label>
-              <select value={form.branch} onChange={e=>setForm({...form,branch:e.target.value})}
+              <select value={form.branch_id} onChange={e=>{
+                    const picked = branches.find(b=>b.id===e.target.value);
+                    setForm({...form, branch_id:e.target.value, branch: picked?.name||""});
+                  }}
                 style={{ padding:"10px 14px", border:`1.5px solid ${C.fog}`, borderRadius:R.md,
                   fontSize:14, outline:"none", background:C.white, color:C.ink, appearance:"none" }}>
                 <option value="">— Select Branch —</option>
                 {branches.filter(b=>!b.parent_id).map(b=>(
                   <optgroup key={b.id} label={b.name}>
-                    <option value={b.name}>{b.name} (Main)</option>
+                    <option value={b.id}>{b.name} (Main)</option>
                     {branches.filter(s=>s.parent_id===b.id).map(s=>(
-                      <option key={s.id} value={s.name}>↳ {s.name}</option>
+                      <option key={s.id} value={s.id}>↳ {s.name}</option>
                     ))}
                   </optgroup>
                 ))}

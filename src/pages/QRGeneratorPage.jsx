@@ -194,7 +194,7 @@ const formatDateTime = (iso) => {
 // ════════════════════════════════════════════════════════════
 //  GO LIVE PAGE
 // ════════════════════════════════════════════════════════════
-export default function QRGeneratorPage() {
+export default function QRGeneratorPage({ role, user }) {
   const [eventName,   setEventName]   = useState("Sunday Worship Service");
   const [date,        setDate]        = useState(todayDate());
   const [serviceTime, setServiceTime] = useState(defaultServiceTime());
@@ -238,10 +238,26 @@ export default function QRGeneratorPage() {
 
   // ── Fetch events ───────────────────────────────────────────
   const fetchEvents = useCallback(async () => {
-    setLoadingPage(true);
-    const { data, error } = await supabase
-      .from("service_events").select("*")
-      .order("created_at", { ascending:false }).limit(25);
+  setLoadingPage(true);
+
+  let query = supabase
+    .from("service_events").select("*")
+    .order("created_at", { ascending:false }).limit(25);
+
+  if (role === "admin" && user?.branchId) {
+    const { data: branchData } = await supabase
+      .from("branches").select("id, name, parent_id");
+    const myBranch = branchData?.find(b => b.id === user.branchId);
+    const isSubBranch = !!myBranch?.parent_id;
+    const accessibleNames = isSubBranch
+      ? [myBranch?.name].filter(Boolean)
+      : [myBranch?.name, ...(branchData?.filter(b => b.parent_id === user.branchId) || []).map(b => b.name)].filter(Boolean);
+    if (accessibleNames.length > 0) {
+      query = query.in("branch", accessibleNames);
+    }
+  }
+
+  const { data, error } = await query;
 
     if (error) { notify("Failed to load history: " + error.message, "error"); setLoadingPage(false); return; }
 
@@ -262,13 +278,21 @@ export default function QRGeneratorPage() {
       setQrData(null);
     }
     setLoadingPage(false);
-  }, [buildQR]);
+  }, [buildQR, role, user?.branchId]);
 
   useEffect(() => {
   fetchEvents();
   supabase.from("branches").select("*, parent:parent_id(name)").order("name")
-    .then(({ data }) => { if (data) setBranches(data); });
-  }, [fetchEvents]);
+    .then(({ data }) => {
+      if (data) {
+        setBranches(data);
+        if (role === "admin" && user?.branchId) {
+          const myBranch = data.find(b => b.id === user.branchId);
+          if (myBranch) setBranch(myBranch.name);
+        }
+      }
+    });
+}, [fetchEvents]);
 
   // ── Countdown ──────────────────────────────────────────────
   useEffect(() => {
@@ -435,14 +459,36 @@ export default function QRGeneratorPage() {
               style={{ padding:"10px 14px", border:`1.5px solid ${C.cloud}`, borderRadius:R.md,
                 fontSize:14, outline:"none", background:C.white, color:C.ink }}>
               <option value="">— Select Branch —</option>
-              {branches.filter(b=>!b.parent_id).map(b=>(
-                <optgroup key={b.id} label={b.name}>
-                  <option value={b.name}>{b.name} (Main)</option>
-                  {branches.filter(s=>s.parent_id===b.id).map(s=>(
-                    <option key={s.id} value={s.name}>↳ {s.name}</option>
-                  ))}
-                </optgroup>
-              ))}
+              {branches
+  .filter(b => !b.parent_id)
+  .filter(b => {
+    if (role !== "admin") return true;
+    const myBranch = branches.find(x => x.id === user?.branchId);
+    const isSubBranch = !!myBranch?.parent_id;
+    if (isSubBranch) return b.id === myBranch?.parent_id;
+    return b.id === user?.branchId;
+  })
+  .map(b => (
+    <optgroup key={b.id} label={b.name}>
+      {(!( role === "admin") || branches.find(x=>x.id===user?.branchId)?.id === b.id) && (
+        <option value={b.name}>{b.name} (Main)</option>
+      )}
+      {branches
+                .filter(s => s.parent_id === b.id)
+                .filter(s => {
+                  if (role !== "admin") return true;
+                  const myBranch = branches.find(x => x.id === user?.branchId);
+                  const isSubBranch = !!myBranch?.parent_id;
+                  if (isSubBranch) return s.id === user?.branchId;
+                  return true;
+                })
+                .map(s => (
+                  <option key={s.id} value={s.name}>↳ {s.name}</option>
+                ))
+              }
+            </optgroup>
+          ))
+        }
             </select>
           </div>
 

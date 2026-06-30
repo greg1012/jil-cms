@@ -155,6 +155,7 @@ function NewPrayerModal({ open, onClose, user, onSuccess }) {
 
     const { error } = await supabase.from("prayer_requests").insert({
       member_id: user?.memberId,
+      branch_id:   user?.branchId,
       title: title.trim(),
       description: description.trim(),
       category,
@@ -460,14 +461,18 @@ export default function PrayerPage({ user, role }) {
 
   const fetchRequests = async () => {
     setLoading(true);
-
-    // Fetch approved requests only, exclude expired
-    const { data } = await supabase.from("prayer_requests")
+    let query = supabase.from("prayer_requests")
       .select(`*, members(name)`)
       .eq("status", "approved")
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false });
 
+    if (user?.branchId && role !== "superadmin") {
+      query = query.eq("branch_id", user.branchId);
+    }
+
+    const { data, error } = await query;
+    console.log("fetchRequests data:", data, "error:", error);
     setRequests(data || []);
     setLoading(false);
   };
@@ -594,8 +599,8 @@ export default function PrayerPage({ user, role }) {
       )}
 
       {/* Admin: Pending approvals section */}
-      {role === "admin" && (
-        <PendingApprovalsSection onApprovalChange={fetchRequests}/>
+      {(role === "admin" || role === "superadmin") && (
+  <PendingApprovalsSection user={user} role={role} onApprovalChange={fetchRequests}/>
       )}
     </div>
   );
@@ -604,7 +609,7 @@ export default function PrayerPage({ user, role }) {
 // ════════════════════════════════════════════════════════════
 //  ADMIN: PENDING APPROVALS
 // ════════════════════════════════════════════════════════════
-function PendingApprovalsSection({ onApprovalChange }) {
+function PendingApprovalsSection({ onApprovalChange, user, role }) {
   const [pending, setPending] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -614,10 +619,15 @@ function PendingApprovalsSection({ onApprovalChange }) {
 
   const loadPending = async () => {
     setLoading(true);
-    const { data } = await supabase.from("prayer_requests")
+    let query = supabase.from("prayer_requests")
       .select(`*, members(name)`)
       .eq("status", "pending")
       .order("created_at", { ascending: true });
+    if (role === "admin" && user?.branchId) {
+      query = query.eq("branch_id", user.branchId);
+    }
+    const { data, error } = await query;
+    console.log("pending data:", data, "error:", error);
     setPending(data || []);
     setLoading(false);
   };
