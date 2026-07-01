@@ -1452,42 +1452,72 @@ const Dashboard = ({ role, user }) => {
         {!mob && (
           <div>
             <h3 style={{ margin:"0 0 12px", fontWeight:700, fontSize:15, color:C.ink }}>Upcoming</h3>
-            <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-              {events.length === 0
-                ? <p style={{ color:C.mist, fontSize:13 }}>No upcoming events.</p>
-                : events.map(e => {
-                    const cfg = e.type==="birthday"
-                      ? { color:C.rose2,   I:Ico.cake }
-                      : e.type==="worship"
-                      ? { color:C.blue,    I:Ico.sparkle }
-                      : { color:C.violet2, I:Ico.calendar };
-                    return (
-                      <Card key={e.id} hoverable onClick={() => setSelectedEvent(e)} style={{ padding:"12px 14px" }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:8 }}>
-                          <div style={{ width:36, height:36, borderRadius:R.sm, background:cfg.color+"22", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                            <cfg.I size={16} color={cfg.color}/>
-                          </div>
-                          <div style={{ flex:1 }}>
-                            <div style={{ fontSize:13, fontWeight:600, color:C.ink }}>{e.name}</div>
-                            <div style={{ fontSize:11, color:C.mist }}>{e.date}{e.branch ? ` · ${e.branch}` : ""}</div>
-                          </div>
-                        </div>
-                        <div onClick={ev => ev.stopPropagation()} style={{ paddingTop:8, borderTop:`1px solid ${C.fog}` }}>
-                          <InlineReactions
-                            table="event_reactions"
-                            idField="event_id"
-                            rowId={e.id}
-                            user={user}
-                            emojis={e.type === "birthday" 
-                              ? ["🎂","🎉","❤️","🙏","🥳","😊"] 
-                              : ["🙏","❤️","🔥","👏","😊","🎉"]}
-                          />
-                        </div>
-                      </Card>
-                    );
-                  })
-              }
-            </div>
+            {events.length === 0
+  ? <p style={{ color:C.mist, fontSize:13 }}>No upcoming events.</p>
+  : (() => {
+      // Group birthdays together, keep other events separate
+      const birthdays = events.filter(e => e.type === "birthday");
+      const others = events.filter(e => e.type !== "birthday");
+      
+      return (
+        <>
+          {/* Non-birthday events */}
+          {others.map(e => {
+            const cfg = e.type==="worship"
+              ? { color:C.blue, I:Ico.sparkle }
+              : { color:C.violet2, I:Ico.calendar };
+            return (
+              <Card key={e.id} hoverable onClick={() => setSelectedEvent(e)} style={{ padding:"12px 14px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:8 }}>
+                  <div style={{ width:36, height:36, borderRadius:R.sm, background:cfg.color+"22",
+                    display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                    <cfg.I size={16} color={cfg.color}/>
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:C.ink }}>{e.name}</div>
+                    <div style={{ fontSize:11, color:C.mist }}>{e.date}{e.branch ? ` · ${e.branch}` : ""}</div>
+                  </div>
+                </div>
+                <div onClick={ev => ev.stopPropagation()} style={{ paddingTop:8, borderTop:`1px solid ${C.fog}` }}>
+                  <InlineReactions table="event_reactions" idField="event_id"
+                    rowId={e.id} user={user} emojis={["🙏","❤️","🔥","👏","😊","🎉"]}/>
+                </div>
+              </Card>
+            );
+          })}
+
+          {/* Consolidated birthday card */}
+          {birthdays.length > 0 && (
+            <Card style={{ padding:"12px 14px", borderLeft:`3px solid ${C.rose2}` }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+                <div style={{ width:36, height:36, borderRadius:R.sm, background:C.rose2+"22",
+                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <Ico.cake size={16} color={C.rose2}/>
+                </div>
+                <div>
+                  <div style={{ fontSize:13, fontWeight:700, color:C.ink }}>
+                    🎂 {birthdays.length} Birthday{birthdays.length > 1 ? "s" : ""} this period
+                  </div>
+                  <div style={{ fontSize:11, color:C.mist }}>Tap names to greet them</div>
+                </div>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                {birthdays.map(e => (
+                  <button key={e.id} onClick={() => setSelectedEvent(e)}
+                    style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+                      background:C.fog, borderRadius:R.md, padding:"8px 12px", border:"none",
+                      cursor:"pointer", textAlign:"left", width:"100%" }}>
+                    <span style={{ fontSize:13, fontWeight:600, color:C.ink }}>{e.name}</span>
+                    <span style={{ fontSize:11, color:C.rose2, fontWeight:600 }}>{e.date}</span>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          )}
+        </>
+      );
+    })()
+}
           </div>
         )}
       </div>
